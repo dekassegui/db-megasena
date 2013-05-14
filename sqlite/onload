@@ -1,0 +1,2 @@
+.separator ' '
+.load './sqlite/more-functions.so'

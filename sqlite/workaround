@@ -1,0 +1,4 @@
+.separator ' '
+.load './sqlite/more-functions.so'
+CREATE TEMP TABLE acc (tipo INT, dim INT, freq INT);
+.import '/tmp/frequencias.dat' acc

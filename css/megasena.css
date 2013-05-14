@@ -1,0 +1,202 @@
+* {
+  margin: 0;
+  padding: 0;
+}
+html {
+  font-size: 10pt;
+}
+body {
+  margin: 10px;
+  font-family: sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 100%;
+  line-height: 150%;
+  background: #fff;
+  color: #111;
+}
+
+#conteudo {
+  padding: 5px;
+  color: #333;
+}
+#conteudo h1 {
+  margin-bottom: 1em;
+  font-family: serif;
+  font-size: 250%;
+  line-height: 140%;
+  font-weight: 700;
+  font-variant: small-caps;
+  letter-spacing: .1em;
+  text-shadow: 1px 1px 2px #666;
+  color: #000;
+  text-align: center;
+}
+#conteudo h1 em {
+  font-style: normal;
+  letter-spacing: 0;
+  color: #000;
+}
+#conteudo h2 {
+  display: inline-block;
+  margin: 1em 0 1em 0;
+  font-family: serif;
+  font-size: 160%;
+  line-height: 160%;
+  font-weight: 700;
+  font-variant: small-caps;
+  letter-spacing: .1em;
+  text-shadow: 1px 1px 2px #666;
+  color: #000;
+  text-align: left;
+  cursor: default;
+}
+#conteudo h2 span {
+  position: relative;
+  bottom: 6px;
+  font-variant: normal;
+  font-size: 130%;
+}
+#conteudo pre {
+  margin: 0 0 0 2em;
+  padding: .5em 1em 0 1em;
+  font-size: 140%;
+  line-height: 130%;
+}
+#conteudo ul {
+  list-style: disc;
+}
+#conteudo ul li {
+  margin: 0 0 .5em 2em;
+  font-size: 140%;
+  line-height: 140%;
+}
+#conteudo ul li span {
+  display: block;
+  margin: 1em 0 1em 2em;
+}
+#conteudo ul li ul li {
+  margin: .5em 0 0 1em;
+  font-size: 100%;
+  line-height: 140%;
+}
+
+#conteudo div > div > p {
+  font-size: 140%;
+  line-height: 140%;
+  margin: 0 0 .5em 2em;
+}
+#conteudo div > div > p > span {
+  font-style: italic;
+  font-weight: 700;
+}
+#conteudo div > div > p > span.chi {
+  position: relative;
+  bottom: 3px;
+}
+
+p img {
+  margin: 0 0 0 5em;
+}
+
+table.boleto {
+  margin: 2em auto;
+  border-collapse: separate; /* collapse */
+  border-spacing: 5px;
+  empty-cells: hide; /* show */
+}
+table.boleto caption {
+  padding: 0 0 20px 0;
+  font-family: serif;
+  font-size: 200%;
+  font-weight: 700;
+  font-variant: small-caps;
+  letter-spacing: .1em;
+  text-shadow: 1px 1px 2px #666;
+  color: #000;
+}
+table.boleto tbody tr td {
+  padding: 20px 15px;
+  border: 1px solid #dcdcdc;
+  font-size: 275%;
+  text-align: center;
+}
+table.boleto tfoot tr td {
+  /* padding-top: 5px; */
+  font-size: 110%;
+  color: #000;
+}
+table.boleto tfoot tr td span {
+  display: table-cell;
+}
+em {
+  font-style: normal;
+  color: #f00;
+  margin-left: .2em;
+  margin-right: .2em;
+}
+
+/* above declaration for image replacement */
+
+#footer {
+  overflow: auto;
+}
+#footer p { /* container para centralização */
+  position: absolute;
+  left: 50%;
+  width: 123px;
+  margin-left: -61px;
+  padding: 3px 0 3px 0;
+  font: 400 8pt serif;
+  color: inherit;
+}
+#footer p span.kandji { /* container da imagem substituta */
+  display: inline-block;
+  width: 123px;
+  height: 24px;
+  background: transparent url('../img/myopensource.png') no-repeat 0 0;
+  margin-bottom: 10px;
+}
+#footer p span.kandji span.displace { /* container do texto a substituir */
+  position: absolute;
+  left: -5000px;      /* due to chrome bug to hide overflow */
+  text-indent: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+}
+#footer p span.kandji span.displace span[lang=ja] {
+  font-weight: 700;
+}
+
+/* above declarations for Mootools Tip plugin */
+*[title] {
+  cursor: default;
+}
+.tip {
+  width: 260px;
+  z-index: 13000;
+  font-family: monospace;
+  font-size: 120%;
+  line-height: 170%;
+  background-color: rgba(51,51,51,.87);
+  -moz-box-shadow: 3px 3px 10px #0c0c0c;
+  -webkit-box-shadow: 3px 3px 10px #0c0c0c;
+  box-shadow: 3px 3px 10px #0c0c0c;
+}
+.tip-title {
+  margin: 0;
+  padding: 5px 10px 5px 10px;
+  font-weight: 700;
+  color: white;
+  /* background: url(../img/-bubble.png) top left; */
+}
+.tip-text {
+  margin: 0;
+  padding: 0 10px 5px 10px;
+  font-weight: 700;
+  color: white;
+  /* background: url(../img/-bubble.png) bottom right; */
+}
+.tip strong {
+  color: gold;
+}
