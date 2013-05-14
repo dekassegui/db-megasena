@@ -1,11 +1,13 @@
--- teste de independência chi-quadrado p/variáveis "sequênciado X acumulado"
--- ao nível de significância 5%
+-- tabela dos concursos em que ocorreram ao menos duas dezenas sequenciadas
 CREATE TEMP TABLE t2 AS
---  SELECT concurso AS N FROM concursos WHERE (N >= 2) AND (
---    (SELECT dezenas FROM dezenas_juntadas WHERE concurso == N)
---    & (SELECT dezenas FROM dezenas_juntadas WHERE concurso == N-1));
   SELECT concurso FROM dezenas_juntadas WHERE mask60(dezenas) LIKE '%11%';
-SELECT round(chi,3), (chi >= 3.841)
+
+-- teste chi-quadrado para verificar independência entre eventos "concurso ter
+-- dezenas sequenciadas" e "concurso não ter ganhadores" ou seja: testar se
+-- ocorrências de dezenas sequenciadas influem na ausência de ganhadores
+SELECT
+  round(chi,3),   -- estatística do teste
+  (chi >= 3.841)  -- comparação com valor crítico para nível de significância 5%
 FROM (
   SELECT power(fa-ea,2)/ea + power(fb-eb,2)/eb + power(fc-ec,2)/ec + power(fd-ed,2)/ed AS chi
   FROM (

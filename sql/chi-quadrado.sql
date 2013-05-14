@@ -1,4 +1,5 @@
--- Teste de aderência chi-quadrado para distribuição uniforme
+-- estatística do teste de aderência chi-quadrado para verificar se as
+-- frequências das dezenas seguem distribuição uniforme
 SELECT
   sum(desvio*desvio/esperanca) AS chi,  -- estatística do teste
   count(*)-1 as gl                      -- graus de liberdade
