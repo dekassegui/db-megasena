@@ -256,10 +256,10 @@ cat >> $html <<DOC
     </ul>
 DOC
 
-critical='3.481'
+critical='3.841'
 read chi status <<< $(query_db "CREATE TEMP TABLE t2 AS
   SELECT concurso FROM dezenas_juntadas WHERE mask60(dezenas) LIKE '%11%';
-SELECT round(chi,3), (chi >= 3.841)
+SELECT round(chi,3), (chi >= $critical)
 FROM (
   SELECT power(fa-ea,2)/ea + power(fb-eb,2)/eb + power(fc-ec,2)/ec + power(fd-ed,2)/ed AS chi
   FROM (
