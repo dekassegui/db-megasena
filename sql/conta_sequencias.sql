@@ -1,10 +1,18 @@
--- contagem de concursos com ocorrências de sequências de dezenas
-create temp view t2 as select mask60(dezenas) as mask from dezenas_juntadas where mask like "%11%";
+-- contagem de concursos com ocorrências de sequências de dezenas consecutivas
+
+-- máscaras de todos os concursos onde ocorreram 2+ dezenas consecutivas
+CREATE TEMP TABLE t2 AS
+  SELECT mask60(dezenas) AS mask FROM dezenas_juntadas WHERE mask LIKE "%11%";
+
 -- 2+ dezenas consecutivas
-select '2+ ' || count(*) as c2 from t2;
+SELECT '2+ ' || count(*) FROM t2;
+
 -- 3+ dezenas consecutivas
-create temp view t3 as select mask from t2 where mask like "%111%";
-select '3+ ' || count(*) as c3 from t3;
+CREATE TEMP TABLE t3 AS
+  SELECT mask FROM t2 WHERE mask LIKE "%111%";
+SELECT '3+ ' || count(*) FROM t3;
+
 -- 4+ dezenas consecutivas
-create temp view t4 as select mask from t3 where mask like "%1111%";
-select '4+ ' || count(*) as c4 from t4;
+CREATE TEMP TABLE t4 AS
+  SELECT mask FROM t3 WHERE mask LIKE "%1111%";
+SELECT '4+ ' || count(*) FROM t4;

@@ -2,7 +2,7 @@
 -- frequências das dezenas seguem distribuição uniforme
 SELECT
   sum(desvio*desvio/esperanca) AS chi,  -- estatística do teste
-  count(*)-1 as gl                      -- graus de liberdade
+  count(*)-1 AS gl                      -- graus de liberdade
 FROM (
   SELECT
     esperanca,
