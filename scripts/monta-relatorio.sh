@@ -144,7 +144,7 @@ from (
   )
   WHERE (dezenas & mask) == mask
   GROUP BY dezena
-) GROUP BY frequencia ORDER BY frequencia desc" | while read f m
+) GROUP BY frequencia ORDER BY frequencia desc" | sed '/^$/d' | while read f m
 do
   cat >> $html <<DOC
       <li>$f:<em>$m</em></li>
