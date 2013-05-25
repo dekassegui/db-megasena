@@ -10,7 +10,7 @@ CREATE TEMP TABLE duplas AS
     a < b
   ORDER BY a, b;
 
--- frequências dos ternos na série histórica dos concursos
+-- frequências das duplas na série histórica dos concursos
 CREATE TEMP TABLE frequencias_duplas AS
   SELECT dupla, count(concurso) AS frequencia
   FROM

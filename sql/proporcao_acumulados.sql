@@ -13,7 +13,7 @@
     FROM (
       SELECT
         sum(acumulado) AS m,    -- número de concursos acumulados
-        count(acumulado) AS n   -- número de concursos
+        count(concurso) AS n    -- número de concursos
       FROM concursos
     )
   )

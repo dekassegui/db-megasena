@@ -4,3 +4,4 @@ css/frequencias.css
 *.html
 *.zip
 *.sqlite
+.RData
