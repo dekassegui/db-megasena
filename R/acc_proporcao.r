@@ -1,28 +1,36 @@
 #!/usr/bin/Rscript
 
 library(RSQLite)
-drv <- dbDriver('SQLite')
-con <- sqliteNewConnection(drv, dbname='megasena.sqlite')
+con <- sqliteNewConnection(dbDriver('SQLite'), dbname='megasena.sqlite')
 
-rs <- dbGetQuery(con, 'select count(concurso) from concursos')
-n=as.integer(rs)
+rs <- dbSendQuery(con, 'SELECT COUNT(concurso) AS NREC FROM concursos')
+nrec = fetch(rs, n = -1)$NREC
 
-rs <- dbGetQuery(con, paste(
-  'SELECT ACC, ', n, '-ACC AS WIN FROM',
+rs <- dbSendQuery(con, paste(
+  'SELECT ACC, ', nrec, '-ACC AS WIN FROM',
   '(SELECT SUM(acumulado) AS ACC FROM concursos)'))
+datum <- fetch(rs, n = -1)
 
+dbClearResult(rs)
 sqliteCloseConnection(con)
 
-print(sprintf('Acumulação em %d Concursos da Mega-Sena:', n), quote=FALSE)
-cat('\n')
-rownames(rs)='count'; print(rs)
-cat('\n')
-pe=0.77
-print(sprintf('H0: A proporção de acumulados é %5.3f.', pe), quote=FALSE)
-print(sprintf('HA: A proporção de acumulados não é %5.3f.', pe), quote=FALSE)
+rownames(datum)=' amount'
+ph = 0.8
+teste <- prop.test(as.matrix(datum), alternative='less', p=ph, correct=FALSE)
+teste$desvio = sqrt(teste$estimate * (1 - teste$estimate) / nrec)
 
-rs <- prop.test(as.matrix(rs), p=pe)
-print(rs)
+cat('Frequência de concursos que acumularam nos', nrec, 'concursos da Mega-Sena:\n\n')
+print(datum)
+cat('\nProporção de concursos que acumularam:\n')
+cat('\n', sprintf('estimativa ± desvio padrão = %.4f ± %.4f\n', teste$estimate, teste$desvio))
+cat('\nTeste da proporção amostral:\n')
 
-if (rs$p.value > 0.05) status='não ' else status=''
-print(sprintf('Conclusão: %srejeitamos H0 ao nível de significância de 5%%.', status), quote=FALSE)
+cat('\n H0: A proporção é maior ou igual a', ph)
+cat('\n HA: A proporção é menor que', ph, '\n')
+
+cat('\n', sprintf('X-square = %.4f', teste$statistic))
+cat('\n', sprintf('      df = %d', teste$parameter))
+cat('\n', sprintf(' p-value = %.4f', teste$p.value))
+
+if (teste$p.value > 0.05) action='Não rejeitamos' else action='Rejeitamos'
+cat('\n\n', sprintf('Conclusão: %s H0 fundamentados na estatística do teste.\n\n', action))

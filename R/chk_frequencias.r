@@ -1,23 +1,27 @@
-#!/usr/bin/Rscript
+#!/usr/bin/Rscript --slave --no-restore
 
 library(RSQLite)
-drv <- dbDriver('SQLite')
-con <- sqliteNewConnection(drv, dbname='megasena.sqlite')
+con <- sqliteNewConnection(dbDriver('SQLite'), dbname='megasena.sqlite')
 
-rs <- dbGetQuery(con, 'select frequencia from info_dezenas')
-frequencias <- as.vector(rs[,])
+rs <- dbSendQuery(con, 'SELECT COUNT(*) AS NRECS FROM concursos')
+nrecs = fetch(rs, n = -1)$NRECS
 
-rs <- dbGetQuery(con, 'select count(concurso) from concursos')
+rs <- dbSendQuery(con, 'SELECT frequencia FROM info_dezenas')
+datum <- fetch(rs, n = -1)
 
+dbClearResult(rs)
 sqliteCloseConnection(con)
 
-print(sprintf('Frequências das Dezenas em %d Concursos da Mega-Sena:', as.integer(rs)), quote=FALSE)
-cat('\n', frequencias, '\n')
-print('H0: As dezenas tem distribuição uniforme.', quote=FALSE)
-print('HA: Existe alguma tendência nos sorteios.', quote=FALSE)
+teste <- chisq.test(datum$frequencia, correct=FALSE)
 
-rs <- chisq.test(frequencias, correct=FALSE)
-print(rs)
+cat(sprintf('Frequências das dezenas nos %d concursos da Mega-Sena:\n', nrecs))
+cat('\n', datum$frequencia, '\n')
+cat('Teste de Aderência Chi-square\n\n')
+cat(' H0: As dezenas têm distribuição uniforme.\n')
+cat(' HA: As dezenas não têm distribuição uniforme.\n')
+cat(sprintf('\n\tX-square = %.4f', teste$statistic))
+cat(sprintf('\n\t      df = %d', teste$parameter))
+cat(sprintf('\n\t p-value = %.4f', teste$p.value))
 
-if (rs$p.value > 0.05) status='não ' else status=''
-print(sprintf('Conclusão: %srejeitamos H0 ao nível de significância de 5%%.', status), quote=FALSE)
+if (teste$p.value > 0.05) action='Não rejeitamos' else action='Rejeitamos'
+cat('\n\n', sprintf('Conclusão: %s H0 fundamentados na estatística do teste.\n\n', action))

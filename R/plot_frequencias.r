@@ -1,24 +1,26 @@
 #!/usr/bin/Rscript
+
 library(RSQLite)
-drv <- dbDriver('SQLite')
-con <- sqliteNewConnection(drv, dbname='megasena.sqlite')
+con <- sqliteNewConnection(dbDriver('SQLite'), dbname='megasena.sqlite')
 
-rs <- dbGetQuery(con, 'select frequencia from info_dezenas')
-frequencias <- as.vector( rs[,] )
+rs <- dbSendQuery(con, 'SELECT COUNT(concurso) AS NREC FROM concursos')
+nrec = fetch(rs, n = -1)$NREC
+titulo = paste('Frequências das dezenas em', nrec, 'concursos da Mega-Sena')
 
-rs <- dbGetQuery(con, 'select count(concurso) from concursos')
-title=sprintf('Frequências das Dezenas em %d Concursos da Mega-Sena', as.integer(rs))
+rs <- dbSendQuery(con, 'SELECT frequencia FROM info_dezenas')
+dados <- fetch(rs, n=-1)
 
+dbClearResult(rs)
 sqliteCloseConnection(con)
 
 lbl <- vector(mode='character', length=60)
 for (ndx in 1:60) lbl[ndx] = sprintf('%02d', ndx)
 
 gd <- barplot(
-  frequencias,
-  main=title, ylab='frequência', xlab='dezenas',
-  names.arg=lbl,
+  dados$frequencia,
+  main=titulo,
+  ylab='frequência',
+  xlab='dezenas', names.arg=lbl,
   border=c('#CC0000', '#CC00CC', '#FF6600', '#009933', '#0066FF'),
   space=4
 )
-

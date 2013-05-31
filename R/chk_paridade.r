@@ -1,29 +1,34 @@
 #!/usr/bin/Rscript
 
 library(RSQLite)
-drv <- dbDriver('SQLite')
-con <- sqliteNewConnection(drv, dbname='megasena.sqlite')
+con <- sqliteNewConnection(dbDriver('SQLite'), dbname='megasena.sqlite')
 
-rs <- dbGetQuery(con, 'select count(concurso) from concursos')
-n=as.integer(rs)
+rs <- dbSendQuery(con, 'SELECT COUNT(concurso) as size FROM concursos')
+size=fetch(rs, n = -1)$size
 
-rs <- dbGetQuery(con, paste(
-        'SELECT M-N, N FROM',
-        '(SELECT count(*) AS M, SUM(dezena % 2) AS N FROM dezenas_sorteadas)'))
+rs <- dbSendQuery(con, paste(
+    'SELECT M-odd as even, odd FROM',
+    '(SELECT count(*) AS M, SUM(dezena % 2) AS odd FROM dezenas_sorteadas)'))
+datum <- fetch(rs, n = -1)
 
+dbClearResult(rs)
 sqliteCloseConnection(con)
 
-dimnames(rs) <- list('frequência', paridades=c('even', 'odd'))
+rownames(datum)=' amount'
+ph = 0.5
+teste <- prop.test(as.matrix(datum), p=ph, alternative='t', correct=FALSE)
+teste$desvio = sqrt(teste$estimate * (1 - teste$estimate) / sum(datum))
 
-print(sprintf('Paridades das Dezenas em %d Concursos da Mega-Sena:', n), quote=FALSE)
-cat('\n')
-print(rs)
-cat('\n')
-print('H0: A proporção de pares é 0.5.', quote=FALSE)
-print('HA: A proporção de pares não é 0.5.', quote=FALSE)
+cat('Paridades das dezenas nos', size, 'concursos da Mega-Sena:\n\n')
+print(datum)
+cat('\nProporção de dezenas pares:\n\n')
+cat(sprintf(' estimativa ± desvio padrão = %.4f ± %.4f', teste$estimate, teste$desvio), '\n\n')
+cat('Teste da proporção amostral:\n')
+cat('\n', 'H0: A proporção é igual a', ph)
+cat('\n', 'HA: A proporção não é igual a', ph)
+cat(sprintf('\n\n\tX-square = %.4f', teste$statistic))
+cat(sprintf('\n\t      df = %d', teste$parameter))
+cat(sprintf('\n\t p-value = %.4f', teste$p.value))
 
-rs <- prop.test(as.matrix(rs), p=0.5, correct=FALSE)
-print(rs)
-
-if (rs$p.value > 0.05) status='não ' else status=''
-print(sprintf('Conclusão: %srejeitamos H0 ao nível de significância de 5%%.', status), quote=FALSE)
+if (teste$p.value > 0.05) status='Não rejeitamos' else status='Rejeitamos'
+cat('\n\n', sprintf('Conclusão: %s H0 fundamentados na estatística do teste.\n\n', status))

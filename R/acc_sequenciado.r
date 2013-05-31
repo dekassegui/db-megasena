@@ -1,17 +1,18 @@
 #!/usr/bin/Rscript
 
 library(RSQLite)
-drv <- dbDriver('SQLite')
-con <- sqliteNewConnection(drv, dbname='megasena.sqlite', loadable.extensions=TRUE)
+con <- sqliteNewConnection(drv <- dbDriver('SQLite'), dbname='megasena.sqlite', loadable.extensions=TRUE)
 dbGetQuery(con, 'SELECT LOAD_EXTENSION("./sqlite/more-functions.so")')
 
-rs <- dbGetQuery(con, 'select count(concurso) from concursos')
+rs <- dbGetQuery(con, 'SELECT COUNT(concurso) FROM concursos')
 n=as.integer(rs)
 
-dbGetQuery(con, paste('CREATE TEMP TABLE t AS', 'SELECT acumulado, MASK60(dezenas) LIKE "%11%" AS sequenciado FROM concursos NATURAL JOIN dezenas_juntadas'))
+dbGetQuery(con, paste(
+  'CREATE TEMP TABLE t AS',
+  'SELECT acumulado, MASK60(dezenas) LIKE "%11%" AS sequenciado',
+  'FROM concursos NATURAL JOIN dezenas_juntadas'))
 
-rs <- dbGetQuery(con,
-        paste(
+rs <- dbGetQuery(con, paste(
   'SELECT * FROM',
   '(SELECT COUNT(*) FROM t WHERE acumulado AND sequenciado),',
   '(SELECT COUNT(*) FROM t WHERE acumulado AND NOT sequenciado),',
@@ -21,16 +22,17 @@ rs <- dbGetQuery(con,
 sqliteCloseConnection(con)
 
 m <- matrix(as.integer(rs[1:4]), ncol=2, byrow=TRUE)
-dimnames(m) <- list(acumulado=c('sim','não'), sequenciado=c('sim','não'))
+dimnames(m) <- list(' acumulado'=c('sim','não'), sequenciado=c('sim','não'))
+teste <- chisq.test(m, correct=TRUE)
 
-cat(sprintf('\nAcumulados X Sequenciados nos %d concursos da Mega-Sena:\n\n', n))
+cat('Acumulados X Sequenciados nos', n, 'concursos da Mega-Sena:\n\n')
 print(m)
-cat('\n')
-print('H0: Os eventos são independentes entre si.', quote=FALSE)
-print('HA: Os eventos não são independentes entre si.', quote=FALSE)
+cat('\nTeste de Independência Entre os Eventos:\n')
+cat('\n', 'H0: Os eventos são independentes.')
+cat('\n', 'HA: Os eventos não são independentes.')
+cat('\n\n\t', sprintf('X-square = %.4f', teste$statistic))
+cat('\n\t', sprintf('      df = %d', teste$parameter))
+cat('\n\t', sprintf(' p-value = %.4f', teste$p.value))
 
-rs <- chisq.test(m, correct=FALSE)
-print(rs)
-
-if (rs$p.value > 0.05) status='não ' else status=''
-print(sprintf('Conclusão: %srejeitamos H0 ao nível de significância de 5%%.', status), quote=FALSE)
+if (teste$p.value > 0.05) action='Não rejeitamos' else action='Rejeitamos'
+cat('\n\n', sprintf('Conclusão: %s H0 fundamentados na estatística do teste.\n\n', action))
