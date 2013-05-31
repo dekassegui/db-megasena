@@ -104,8 +104,8 @@ read n chi status <<< $(sqlite3 -separator ' ' megasena.sqlite "SELECT n, round(
 cat >> $html <<DOC
     <h2>Teste de Aderência <span>χ²</span></h2>
     <div>
-      <p title="<strong>hipótese nula</strong> :: ao longo do tempo as dezenas são sorteadas o mesmo número de vezes">H₀: <span>As frequências das dezenas têm distribuição uniforme.</span></p>
-      <p title="<strong>hipótese alternativa</strong> ::  ao longo do tempo as dezenas não são sorteadas o mesmo número de vezes">H₁: <span>As frequências das dezenas não têm distribuição uniforme.</span></p>
+      <p title="<strong>hipótese nula</strong> :: ao longo do tempo as dezenas são sorteadas o mesmo número de vezes">H₀: <span>As dezenas têm distribuição uniforme.</span></p>
+      <p title="<strong>hipótese alternativa</strong> ::  ao longo do tempo as dezenas não são sorteadas o mesmo número de vezes">H₁: <span>As dezenas não têm distribuição uniforme.</span></p>
       <!-- <p>Número de concursos analisados = <em>$n</em></p> -->
       <p><img src="img/chi-square.png" alt="distribuição chi-quadrado" height="315" width="550" /></p>
       <p><span class="chi">χ²</span> amostral = <em>$chi</em></p>
