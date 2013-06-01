@@ -3,20 +3,22 @@
 library(RSQLite)
 con <- sqliteNewConnection(dbDriver('SQLite'), dbname='megasena.sqlite')
 
-rs <- dbSendQuery(con, 'SELECT COUNT(*) AS NRECS FROM concursos')
-nrecs = fetch(rs, n = -1)$NRECS
-
-rs <- dbSendQuery(con, 'SELECT frequencia FROM info_dezenas')
+rs <- dbSendQuery(con, 'SELECT dezena FROM dezenas_sorteadas')
 datum <- fetch(rs, n = -1)
 
 dbClearResult(rs)
 sqliteCloseConnection(con)
 
-teste <- chisq.test(datum$frequencia, correct=FALSE)
+nrecs <- length(datum$dezena) / 6;
 
-cat('Frequências das dezenas nos', nrecs, 'concursos da Mega-Sena:\n')
-cat('\n', datum$frequencia, '\n')
-cat('Teste de Aderência Chi-square\n\n')
+tabela <- table(datum$dezena)
+dimnames(tabela) <- list(sprintf('(%02d)', 1:length(tabela)))
+
+teste <- chisq.test(tabela, correct=FALSE)
+
+cat('Frequências das dezenas nos', nrecs, 'concursos da Mega-Sena:\n\n')
+print(tabela)
+cat('\nTeste de Aderência Chi-square\n\n')
 cat(' H0: As dezenas têm distribuição uniforme.\n')
 cat(' HA: As dezenas não têm distribuição uniforme.\n')
 cat(sprintf('\n\tX-square = %.4f', teste$statistic))

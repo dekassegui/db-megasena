@@ -27,7 +27,7 @@ teste <- chisq.test(m, correct=TRUE)
 
 cat('Acumulados X Sequenciados nos', n, 'concursos da Mega-Sena:\n\n')
 print(m)
-cat('\nTeste de Independência Entre os Eventos:\n')
+cat('\nTeste de Independência entre Eventos:\n')
 cat('\n', 'H0: Os eventos são independentes.')
 cat('\n', 'HA: Os eventos não são independentes.')
 cat('\n\n\t', sprintf('X-square = %.4f', teste$statistic))
@@ -35,4 +35,4 @@ cat('\n\t', sprintf('      df = %d', teste$parameter))
 cat('\n\t', sprintf(' p-value = %.4f', teste$p.value))
 
 if (teste$p.value > 0.05) action='Não rejeitamos' else action='Rejeitamos'
-cat('\n\n', sprintf('Conclusão: %s H0 fundamentados na estatística do teste.\n\n', action))
+cat('\n\n', 'Conclusão:', action, 'H0 conforme evidências estatísticas.\n\n')
