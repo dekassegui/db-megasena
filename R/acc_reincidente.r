@@ -27,7 +27,7 @@ dimnames(m) <- list(' acumulado'=c('sim','não'), reincidente=c('sim','não'))
 teste <- chisq.test(m, correct=TRUE)
 
 cat('Acumulados X Reincidentes nos', n, 'concursos da Mega-Sena:\n\n')
-print(m)
+addmargins(m)
 cat('\nTeste de Independência entre Eventos:\n')
 cat('\n', 'H0: Os eventos são independentes.')
 cat('\n', 'HA: Os eventos não são independentes.')

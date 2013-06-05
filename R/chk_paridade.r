@@ -7,7 +7,7 @@ rs <- dbSendQuery(con, 'SELECT COUNT(concurso) as size FROM concursos')
 size=fetch(rs, n = -1)$size
 
 rs <- dbSendQuery(con, paste(
-    'SELECT M-odd as even, odd FROM',
+    'SELECT M-odd AS even, odd FROM',
     '(SELECT count(*) AS M, SUM(dezena % 2) AS odd FROM dezenas_sorteadas)'))
 datum <- fetch(rs, n = -1)
 
