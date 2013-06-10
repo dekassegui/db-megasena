@@ -37,25 +37,22 @@ barplot(
 # sobrepõe linha horizontal de referência
 abline(
   h=mean(tabela), # esperança das frequências observadas
-  col='red',      # vermelho
+  col='red',      # cor da linha
   lty=3           # 1=continua, 2=tracejada, 3=pontilhada
 )
 
-d <- par()$usr
+gd <- par()$usr   # coordenadas dos extremos do dispositivo de renderização
 
 legend(
-  3*(d[1]+d[2])/4, d[4],
-  bty='n',
-  legend=c('esperança'),
-  col='red',
-  lty=3
+  3*(gd[1]+gd[2])/4, gd[4],   # coordenada (x,y) da legenda
+  bty='n',                    # omite renderização de bordas
+  col='red', lty=3,           # atributos da única linha amostrada
+  legend=c('esperança')       # texto correspondente da linha
 )
 
-mtext('Made with the R Statistical Computing',
-  side=4,
-  adj=0,
-  font=2,
-  cex=.7
-)
+# renderiza texto na margim direita alinhado ao fundo em negrito com 70% do
+# tamanho default de fonte
+mtext('Made with the R Statistical Computing Environment',
+      side=4, adj=0, font=2, cex=.7)
 
 dev.off()   # finaliza a renderização e fecha o arquivo

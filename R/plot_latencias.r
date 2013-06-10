@@ -32,20 +32,16 @@ abline(
   col='red', lty=3
 )
 
-d <- par()$usr
+gd <- par()$usr
 
 legend(
-  3*(d[1]+d[2])/4, 4*d[4]/5,
+  3*(gd[1]+gd[2])/4, 4*gd[4]/5,
   bty='n',
-  legend=c('esperança'),
-  col='red', lty=3
+  col='red', lty=3,
+  legend=c('esperança')
 )
 
-mtext('Made with the R Statistical Computing',
-  side=4,
-  adj=0,
-  font=2,
-  cex=.7
-)
+mtext('Made with the R Statistical Computing Environment',
+  side=4, adj=0, font=2, cex=.7)
 
 dev.off()
