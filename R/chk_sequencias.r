@@ -34,5 +34,5 @@ cat('\n', sprintf('X-square = %.4f', teste$statistic))
 cat('\n', sprintf('      df = %d', teste$parameter))
 cat('\n', sprintf(' p-value = %.4f', teste$p.value))
 
-if (teste$p.value > 0.05) action='Não rejeitamos' else action='Rejeitamos'
+action = ifelse(teste$p.value > 0.05, 'Não rejeitamos', 'Rejeitamos')
 cat('\n\n', 'Conclusão:', action, 'H0 conforme evidências estatísticas.\n\n')
