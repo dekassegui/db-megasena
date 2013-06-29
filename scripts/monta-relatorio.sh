@@ -76,7 +76,7 @@ DOC
     printf -v dec '%02d' $dezena
     classname="dezena$dec"
     cat >> $html <<DOC
-    <td class="$classname" title="dezena $dec<br/>IFR = ${ifrap} :: foi sorteada em $frequencia concursos e pela última vez há $latencia concursos">$dec</td>
+    <td class="$classname" title="dezena $dec&lt;br/&gt;IFR = ${ifrap} :: foi sorteada em $frequencia concursos e pela última vez há $latencia concursos">$dec</td>
 DOC
     [[ $beta == '1.0' ]] && cor='0' || cor='18'
     cat >> $css_file <<CSS_DOC
@@ -101,17 +101,20 @@ DOC
 probability='5%'
 critical='77.931'
 read n chi status <<< $(sqlite3 -separator ' ' megasena.sqlite "SELECT n, round(chi,3), (chi >= $critical) FROM (SELECT n, sum(desvio*desvio/esperanca) AS chi FROM (SELECT n, esperanca, (frequencia-esperanca) AS desvio FROM info_dezenas, (SELECT n, n/10.0 AS esperanca FROM (SELECT count(concurso) AS n from concursos))))")
+R/plot-chi-59.r $chi
+mv 'chi-59.png' img/
 cat >> $html <<DOC
     <h2>Teste de Aderência <span>χ²</span></h2>
     <div>
-      <p title="<strong>hipótese nula</strong> :: ao longo do tempo as dezenas são sorteadas o mesmo número de vezes">H₀: <span>As dezenas têm distribuição uniforme.</span></p>
-      <p title="<strong>hipótese alternativa</strong> ::  ao longo do tempo as dezenas não são sorteadas o mesmo número de vezes">H₁: <span>As dezenas não têm distribuição uniforme.</span></p>
+      <p title="&lt;strong&gt;hipótese nula&lt;/strong&gt; :: ao longo do tempo as dezenas são sorteadas o mesmo número de vezes">H₀: <span>As dezenas têm distribuição uniforme.</span></p>
+      <p title="&lt;strong&gt;hipótese alternativa&lt;/strong&gt; ::  ao longo do tempo as dezenas não são sorteadas o mesmo número de vezes">H₁: <span>As dezenas não têm distribuição uniforme.</span></p>
       <!-- <p>Número de concursos analisados = <em>$n</em></p> -->
-      <p><img src="img/chi-square.png" alt="distribuição chi-quadrado" height="315" width="550" /></p>
+      <!-- <p><img src="img/chi-square.png" alt="distribuição chi-quadrado" height="315" width="550" /></p> -->
+      <p><img src="img/chi-59.png" alt="distribuição chi-quadrado" width="640" height="480" /></p>
       <p><span class="chi">χ²</span> amostral = <em>$chi</em></p>
       <p>gl=<em>59</em></p>
       <p>Para X ∼ <span class="chi">χ²</span> , gl=<em>59</em> temos: P(X ≥ <em>$critical</em>) = <em>$probability</em></p>
-      <p>portanto: P(X ≥ <em>$chi</em>) $( [ $status -ne 1 ] && echo '>' || echo '<' ) <em>$probability</em>.</p>
+      <p>portanto: P(X ≥ <em>$chi</em>) $( [ $status -ne 1 ] && echo '&gt;' || echo '&lt;' ) <em>$probability</em>.</p>
       <p>Conclusão: <span>“Ao nível de significância de $probability $( [ $status -ne 1 ] && echo 'não ' )rejeitamos a hipótese nula”.</span></p>
     </div>
 DOC
@@ -119,7 +122,7 @@ DOC
 tmp='/tmp/buffer.txt'
 # monta e armazena a máscara de incidência das dezenas de cada concurso que
 # contém ao menos uma sequência de duas dezenas consecutivas
-query_db 'SELECT zeropad(concurso,4), MASK60(dezenas) AS mask FROM dezenas_juntadas WHERE mask LIKE "%11%"' > $tmp
+query_db 'SELECT zeropad(concurso,4), MASK60(dezenas) AS mask FROM dezenas_juntadas WHERE mask LIKE "%11%"' | sed '/^$/d' > $tmp
 cat >> $html <<DOC
     <h2>Sequências de dezenas consecutivas</h2>
     <ul>
@@ -283,15 +286,18 @@ FROM (
     )
   )
 )")
+R/plot-chi-one.r $chi
+mv 'chi-one.png' 'img/'
 cat >> $html <<DOC
     <h2>Teste de Independência “Acumular x Sequência de dezenas consecutivas”</h2>
     <div>
-      <p title="<strong>hipótese nula</strong> :: concursos acumulam indiferentemente ao sorteio de dezenas consecutivas">H₀: <span>Os eventos são independentes entre si.</span></p>
-      <p title="<strong>hipótese alternativa</strong> :: quando são sorteadas dezenas consecutivas quase certamente os concursos acumulam">H₁: <span>Os eventos não são independentes entre si.</span></p>
+      <p title="&lt;strong&gt;hipótese nula&lt;/strong&gt; :: concursos acumulam indiferentemente ao sorteio de dezenas consecutivas">H₀: <span>Os eventos são independentes entre si.</span></p>
+      <p title="&lt;strong&gt;hipótese alternativa&lt;/strong&gt; :: quando são sorteadas dezenas consecutivas quase certamente os concursos acumulam">H₁: <span>Os eventos não são independentes entre si.</span></p>
+      <p><img src="img/chi-one.png" alt="distribuição chi-quadrado" width="640" height="480" /></p>
       <p><span class="chi">χ²</span> amostral = <em>$chi</em></p>
       <p>gl = <em>1</em></p>
       <p>Para X ∼ <span class="chi">χ²</span> , gl=1 temos: P(X ≥ <em>$critical</em>) = <em>$probability</em></p>
-      <p>portanto: P(X ≥ <em>$chi</em>) $( [ $status -ne 1 ] && echo '>' || echo '<' ) <em>$probability</em>.</p>
+      <p>portanto: P(X ≥ <em>$chi</em>) $( [ $status -ne 1 ] && echo '&gt;' || echo '&lt;' ) <em>$probability</em>.</p>
       <p>Conclusão: <span>“Ao nível de significância de $probability $( [ $status -ne 1 ] && echo 'não ' )rejeitamos a hipótese nula”.</span></p>
     </div>
 DOC
