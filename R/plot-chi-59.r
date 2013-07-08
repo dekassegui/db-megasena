@@ -51,12 +51,20 @@ legend(
 
 # renderiza hachuras num intervalo arbitrário
 hatch <- function(from, to, color) {
-  a = from
-  while (a <= to) {
-    y = chi.density(a)
-    if (y < 1E-4) break
-    segments(a, 0, a, y, col=color, lty='solid', lwd=1)
-    a = a + 0.35
+  if (from < to) {
+    xx <- from
+    yy <- 0
+    a = from
+    while (a <= to) {
+      y = chi.density(a)
+      if (y < 1E-4) break
+      xx <- c(xx, a)
+      yy <- c(yy, y)
+      a = a + 0.35
+    }
+    xx <- c(xx, a)
+    yy <- c(yy, 0)
+    polygon(xx, yy, density=25, col=color, border=NA)
   }
 }
 
