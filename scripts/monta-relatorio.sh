@@ -98,6 +98,13 @@ cat >> $html <<DOC
     </table>
 DOC
 
+cat >> $html <<DOC
+    <h2>Diagramas das frequências e latências</h2>
+    <div>
+      <img src="img/both-$n.png" alt="frequências e latências" height="558" width="1300" />
+    </div>
+DOC
+
 probability='5%'
 critical='77.931'
 read n chi status <<< $(sqlite3 -separator ' ' megasena.sqlite "SELECT n, round(chi,3), (chi >= $critical) FROM (SELECT n, sum(desvio*desvio/esperanca) AS chi FROM (SELECT n, esperanca, (frequencia-esperanca) AS desvio FROM info_dezenas, (SELECT n, n/10.0 AS esperanca FROM (SELECT count(concurso) AS n from concursos))))")
