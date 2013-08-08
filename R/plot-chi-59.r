@@ -17,7 +17,7 @@ if (is.na(estatistica)) {
   X11(display=":0.0", family='serif', 12.7, 6, 9)
 } else {
   # renderização em batch
-  png(filename='chi-59.png', width=640, height=480,
+  png(filename='img/chi-59.png', width=640, height=480,
       family='DejaVu Serif', pointsize=9)
   usingPNG = TRUE
 }

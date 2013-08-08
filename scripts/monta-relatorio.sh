@@ -98,6 +98,18 @@ cat >> $html <<DOC
     </table>
 DOC
 
+# cria gráfico das frequências e latências
+./R/plot-both.r
+
+png_compress() {
+  local tmpfile=/tmp/saida.png
+  # converte imagem PNG de true-color para indexed 256 colors
+  1>/dev/null which convert && convert -quality 0 +dither -colors 256 "$1" $tmpfile
+  # compressão default da imagem resultante
+  1>/dev/null which pngcrush && pngcrush -q $tmpfile "$1"
+}
+
+png_compress "img/both-$n.png"
 cat >> $html <<DOC
     <h2>Diagramas das frequências e latências</h2>
     <div>
@@ -109,14 +121,12 @@ probability='5%'
 critical='77.931'
 read n chi status <<< $(sqlite3 -separator ' ' megasena.sqlite "SELECT n, round(chi,3), (chi >= $critical) FROM (SELECT n, sum(desvio*desvio/esperanca) AS chi FROM (SELECT n, esperanca, (frequencia-esperanca) AS desvio FROM info_dezenas, (SELECT n, n/10.0 AS esperanca FROM (SELECT count(concurso) AS n from concursos))))")
 R/plot-chi-59.r $chi
-mv 'chi-59.png' img/
+png_compress 'img/chi-59.png'
 cat >> $html <<DOC
     <h2>Teste de Aderência <span>χ²</span></h2>
     <div>
       <p title="&lt;strong&gt;hipótese nula&lt;/strong&gt; :: ao longo do tempo as dezenas são sorteadas o mesmo número de vezes">H₀: <span>As dezenas têm distribuição uniforme.</span></p>
       <p title="&lt;strong&gt;hipótese alternativa&lt;/strong&gt; ::  ao longo do tempo as dezenas não são sorteadas o mesmo número de vezes">H₁: <span>As dezenas não têm distribuição uniforme.</span></p>
-      <!-- <p>Número de concursos analisados = <em>$n</em></p> -->
-      <!-- <p><img src="img/chi-square.png" alt="distribuição chi-quadrado" height="315" width="550" /></p> -->
       <p><img src="img/chi-59.png" alt="distribuição chi-quadrado" width="640" height="480" /></p>
       <p><span class="chi">χ²</span> amostral = <em>$chi</em></p>
       <p>gl=<em>59</em></p>
@@ -294,7 +304,7 @@ FROM (
   )
 )")
 R/plot-chi-one.r $chi
-mv 'chi-one.png' 'img/'
+png_compress 'img/chi-one.png'
 cat >> $html <<DOC
     <h2>Teste de Independência “Acumular x Sequência de dezenas consecutivas”</h2>
     <div>

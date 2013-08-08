@@ -1,13 +1,3 @@
 #!/bin/bash
 # evita notificação do sqlite ao carregar extensão
 ./scripts/monta-relatorio.sh > /dev/null 2>&1
-# aciona script R para criar gráfico das frequências e latências
-./R/plot-both.r > /dev/null 2>&1
-num=$(sqlite3 megasena.sqlite 'select max(concurso) from concursos')
-pngfile="both-${num}.png"
-tmpfile=/tmp/saida.png
-# convert imagem PNG de true-color para indexed
-convert -quality 0 +dither -colors 256 $pngfile $tmpfile
-# comprime a imagem resultante e a move para diretório de imagens
-pngcrush -q $tmpfile $pngfile
-mv $pngfile ./img/
