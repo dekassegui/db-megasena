@@ -16,6 +16,7 @@ query_db () {
 }
 
 n=$(sqlite3 megasena.sqlite "SELECT count(concurso) FROM concursos")
+num_concurso=$n
 
 cat > $html <<DOC
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -103,8 +104,9 @@ DOC
 
 png_compress() {
   local tmpfile=/tmp/saida.png
-  # converte imagem PNG de true-color para indexed 256 colors
-  1>/dev/null which convert && convert -quality 0 +dither -colors 256 "$1" $tmpfile
+  # renderiza texto sobre o número do concurso no canto inferior direito e
+  # converte a imagem PNG de true-color para indexed 256 colors
+  1>/dev/null which convert && convert -pointsize 11 -fill '#778899' -gravity SouthEast -draw "text 1,1 'Concurso $num_concurso da MegaSena.'" -quality 0 +dither -colors 256 "$1" $tmpfile
   # compressão default da imagem resultante
   1>/dev/null which pngcrush && pngcrush -q $tmpfile "$1"
 }

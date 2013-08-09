@@ -24,7 +24,7 @@ sqliteCloseConnection(con)
 
 m <- matrix(as.integer(rs[1:4]), ncol=2, byrow=TRUE)
 dimnames(m) <- list(' acumulado'=c('sim','não'), reincidente=c('sim','não'))
-teste <- chisq.test(m, correct=TRUE)
+teste <- chisq.test(m, correct=FALSE)
 
 cat('Acumulados X Reincidentes nos', n, 'concursos da Mega-Sena:\n\n')
 addmargins(m)
