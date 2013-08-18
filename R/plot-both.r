@@ -18,10 +18,10 @@ dimnames(tabela) <- list(rotulos)
 # arquivo para armazenamento da imagem com declaração das dimensões do
 # device gráfico e tamanho da fonte de caracteres
 fname=sprintf('img/both-%d.png', nrec)
-png(filename=fname, width=1300, height=558, pointsize=9)
+png(filename=fname, width=1100, height=600, pointsize=9)
 
 # preserva configuração do device gráfico antes de personalizar
-op = par(mfrow=c(1, 2))  # dois gráficos alinhados horizontalmente
+op = par(mfrow=c(2, 1))  # dois gráficos alinhados horizontalmente
 
 barplot(
   tabela,

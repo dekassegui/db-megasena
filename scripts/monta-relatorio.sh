@@ -115,7 +115,7 @@ png_compress "img/both-$n.png"
 cat >> $html <<DOC
     <h2>Diagramas das frequências e latências</h2>
     <div>
-      <img src="img/both-$n.png" alt="frequências e latências" height="558" width="1300" />
+      <img src="img/both-$n.png" alt="frequências e latências" height="600" width="1100" />
     </div>
 DOC
 
@@ -125,14 +125,14 @@ read n chi status <<< $(sqlite3 -separator ' ' megasena.sqlite "SELECT n, round(
 R/plot-chi-59.r $chi
 png_compress 'img/chi-59.png'
 cat >> $html <<DOC
-    <h2>Teste de Aderência <span>χ²</span></h2>
+    <h2>Teste de Aderência <span>&#967;&#178;<!-- 0x03C7 0x00B2 χ² --></span></h2>
     <div>
       <p title="&lt;strong&gt;hipótese nula&lt;/strong&gt; :: ao longo do tempo as dezenas são sorteadas o mesmo número de vezes">H₀: <span>As dezenas têm distribuição uniforme.</span></p>
       <p title="&lt;strong&gt;hipótese alternativa&lt;/strong&gt; ::  ao longo do tempo as dezenas não são sorteadas o mesmo número de vezes">H₁: <span>As dezenas não têm distribuição uniforme.</span></p>
       <p><img src="img/chi-59.png" alt="distribuição chi-quadrado" width="640" height="480" /></p>
-      <p><span class="chi">χ²</span> amostral = <em>$chi</em></p>
+      <p><span class="chi">&#967;&#178;</span> amostral = <em>$chi</em></p>
       <p>gl=<em>59</em></p>
-      <p>Para X ∼ <span class="chi">χ²</span> , gl=<em>59</em> temos: P(X ≥ <em>$critical</em>) = <em>$probability</em></p>
+      <p>Para X ∼ <span class="chi">&#967;&#178;</span> , gl=<em>59</em> temos: P(X ≥ <em>$critical</em>) = <em>$probability</em></p>
       <p>portanto: P(X ≥ <em>$chi</em>) $( [ $status -ne 1 ] && echo '&gt;' || echo '&lt;' ) <em>$probability</em>.</p>
       <p>Conclusão: <span>“Ao nível de significância de $probability $( [ $status -ne 1 ] && echo 'não ' )rejeitamos a hipótese nula”.</span></p>
     </div>
@@ -313,9 +313,9 @@ cat >> $html <<DOC
       <p title="&lt;strong&gt;hipótese nula&lt;/strong&gt; :: concursos acumulam indiferentemente ao sorteio de dezenas consecutivas">H₀: <span>Os eventos são independentes entre si.</span></p>
       <p title="&lt;strong&gt;hipótese alternativa&lt;/strong&gt; :: quando são sorteadas dezenas consecutivas quase certamente os concursos acumulam">H₁: <span>Os eventos não são independentes entre si.</span></p>
       <p><img src="img/chi-one.png" alt="distribuição chi-quadrado" width="640" height="480" /></p>
-      <p><span class="chi">χ²</span> amostral = <em>$chi</em></p>
+      <p><span class="chi">&#967;&#178;</span> amostral = <em>$chi</em></p>
       <p>gl = <em>1</em></p>
-      <p>Para X ∼ <span class="chi">χ²</span> , gl=1 temos: P(X ≥ <em>$critical</em>) = <em>$probability</em></p>
+      <p>Para X ∼ <span class="chi">&#967;&#178;</span> , gl=1 temos: P(X ≥ <em>$critical</em>) = <em>$probability</em></p>
       <p>portanto: P(X ≥ <em>$chi</em>) $( [ $status -ne 1 ] && echo '&gt;' || echo '&lt;' ) <em>$probability</em>.</p>
       <p>Conclusão: <span>“Ao nível de significância de $probability $( [ $status -ne 1 ] && echo 'não ' )rejeitamos a hipótese nula”.</span></p>
     </div>
@@ -326,7 +326,7 @@ cat >> $html <<DOC
   <div id="footer">
     <p>
       <span class="kandji">
-        <span class="displace">opensource by <span lang="ja">安藤</span></span>
+        <span class="displace">opensource by <span lang="ja">&#23433;&#34276;<!-- &#x5B89;&#x85E4; or 安藤 --></span></span>
       </span>
     </p>
   </div>
