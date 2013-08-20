@@ -9,7 +9,7 @@
  *
  * Bitwise aggregation: group_bitor, group_ndxbitor
  *
- * Miscellaneous: mask60, quadrante, datalocal, datefield
+ * Miscellaneous: mask60, quadrante, datalocal, datefield, rownum
  *
  * Compile: gcc -fPIC -lm -shared more-functions.c -o more-functions.so
  *
@@ -522,6 +522,43 @@ static void datalocalFunc(sqlite3_context *context, int argc, sqlite3_value **ar
   sqlite3_free(rz);
 }
 
+typedef struct ROWNUM_t ROWNUM_t;
+struct ROWNUM_t {
+  int nNumber;
+};
+
+static void rownum_free(void *p) {
+  sqlite3_free(p);
+}
+/*
+** Returns a number as like as row number.
+**
+** Borrowed from http://sqlite.1065341.n5.nabble.com/sequential-row-numbers-from-query-td47370.html
+*/
+static void rownumFunc(
+  sqlite3_context *context,
+  int argc,
+  sqlite3_value **argv
+) {
+  ROWNUM_t* pAux;
+
+  pAux = sqlite3_get_auxdata(context, 0);
+
+  if (!pAux) {
+    pAux = (ROWNUM_t*)sqlite3_malloc(sizeof(ROWNUM_t));
+    if (pAux) {
+      pAux->nNumber = 0;
+      sqlite3_set_auxdata(context, 0, (void*)pAux, rownum_free);
+    } else {
+      sqlite3_result_error(context, "sqlite3_malloc failed", -1);
+      return;
+    }
+  }
+  pAux->nNumber++;
+
+  sqlite3_result_int(context, pAux->nNumber);
+}
+
 /*
 ** This function registered all of the above C functions as SQL
 ** functions.  This should be the only routine in this file with
@@ -552,6 +589,8 @@ int RegisterExtensionFunctions(sqlite3 *db)
 
     { "datefield",          2, 0, SQLITE_UTF8,    0, datefieldFunc },
     { "datalocal",          1, 0, SQLITE_UTF8,    0, datalocalFunc },
+
+    { "rownum",             1, 0, SQLITE_UTF8,    0, rownumFunc },
 
   };
 
