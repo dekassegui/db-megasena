@@ -32,7 +32,14 @@ CREATE TABLE concursos (
   acumulado               BOOL NOT NULL ON CONFLICT ABORT,  -- 0 = false e 1 = true
   valor_acumulado         DOUBLE,
   estimativa_premio       DOUBLE,
-  acumulada_mega_virada   DOUBLE);
+  acumulada_mega_virada   DOUBLE,
+  CONSTRAINT dezenas_unicas CHECK(
+    dezena1 NOT IN (dezena2, dezena3, dezena4, dezena5, dezena6) AND
+    dezena2 NOT IN (dezena3, dezena4, dezena5, dezena6) AND
+    dezena3 NOT IN (dezena4, dezena5, dezena6) AND
+    dezena4 NOT IN (dezena5, dezena6) AND
+    dezena5 != dezena6
+  ));
 CREATE TRIGGER IF NOT EXISTS on_concursos_insert AFTER INSERT ON concursos BEGIN
   INSERT INTO dezenas_juntadas (concurso,dezenas) VALUES (new.concurso,(1 &#60;&#60; new.dezena1-1) | (1 &#60;&#60; new.dezena2-1) | (1 &#60;&#60; new.dezena3-1) | (1 &#60;&#60; new.dezena4-1) | (1 &#60;&#60; new.dezena5-1) | (1 &#60;&#60; new.dezena6-1));
   INSERT INTO dezenas_sorteadas (concurso,dezena) VALUES (new.concurso,new.dezena1);
