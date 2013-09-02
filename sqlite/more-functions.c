@@ -1,8 +1,6 @@
 /*
  * Math: power
  *
- * Math aggregation: product
- *
  * String: reverse, zeropad
  *
  * Bitwise: int2bin, bitstatus
@@ -11,7 +9,7 @@
  *
  * Miscellaneous: mask60, quadrante, datalocal, datefield, rownum
  *
- * Compile: gcc -fPIC -lm -shared more-functions.c -o more-functions.so
+ * Compile: gcc more-functions.c -fPIC -shared -lm -o more-functions.so
  *
  * Usage: .load "path_to_lib/more-functions.so"
  * or also for JDBC: select load_extension("path_to_lib/more-functions.so");
@@ -64,40 +62,14 @@ static void powerFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
   }
 }
 
-/* estrutura de contexto Produtorio */
-typedef struct ProductCtx ProductCtx;
-struct ProductCtx {
-  double rB;
-};
-
-
-static void group_productStep(sqlite3_context *context, int argc, sqlite3_value **argv)
-{
-  ProductCtx *p;
-  double value = 0;
-  assert( 1 == argc );
-  p = sqlite3_aggregate_context(context, sizeof(*p));
-  value = sqlite3_value_double(argv[0]);
-  p->rB += log(value);
-}
-
-static void group_productFinalize(sqlite3_context *context)
-{
-  ProductCtx *p;
-  double value = 0;
-  p = sqlite3_aggregate_context(context, 0);
-  value = exp(p->rB);
-  sqlite3_result_double(context, value);
-}
-
 #include <limits.h>
 
 #define I64_NBITS (sizeof(i64) * CHAR_BIT)
 
-static char *int2bin(char *buf, i64 n)
+static char *int2bin(i64 n, char *buf)
 {
   int i;
-  char* t = buf + I64_NBITS;
+  char *t = buf + I64_NBITS;
   *t = '\0';
   for (i=I64_NBITS; i>0; i--, n >>= 1) *(--t) = (n & 1) + '0';
   return buf;
@@ -117,7 +89,7 @@ static void int2binFunc(sqlite3_context *context, int argc, sqlite3_value **argv
     if (!buffer) {
       sqlite3_result_error_nomem(context);
     } else {
-      int2bin(buffer, iVal);
+      int2bin(iVal, buffer);
       sqlite3_result_text(context, buffer, -1, SQLITE_TRANSIENT);
       sqlite3_free(buffer);
     }
@@ -245,7 +217,7 @@ static void group_ndxbitorStep(sqlite3_context *context, int argc, sqlite3_value
     int iVal = sqlite3_value_int(argv[0]);
     if (iVal > 0 && iVal <= N_DEZENAS) {
       p = sqlite3_aggregate_context(context, sizeof(*p));
-      p->rB |= ONE << iVal-1;
+      p->rB |= ONE << (iVal-1);
     } else {
       sqlite3_result_error(context, "error: index isn't in [1;60]", -1);
     }
@@ -350,7 +322,7 @@ static int sqlite3ReadUtf8(const unsigned char *z)
 ** X so that it points to the next character.  This only works right
 ** if X points to a well-formed UTF-8 string.
 */
-#define sqliteNextChar(X)  while( (0xc0&*++(X))==0x80 ){}
+#define sqliteNextChar(X)  while( (0xC0 & *(++X)) == 0x80 ){}
 #define sqliteCharVal(X)   sqlite3ReadUtf8(X)
 
 /*
@@ -474,7 +446,7 @@ static void datefieldFunc(sqlite3_context *context, int argc, sqlite3_value **ar
   const int NDX[3] = { 0, 5, 8 }; /* fields offset indexes */
   const char *z;
   char *rz;
-  int f, i, j;
+  int f;
   assert( 2 == argc );
   /* check if first argument type is text */
   if ( SQLITE_TEXT != sqlite3_value_type(argv[0]) ) {
@@ -530,8 +502,10 @@ struct ROWNUM_t {
 static void rownum_free(void *p) {
   sqlite3_free(p);
 }
+
 /*
-** Returns a number as like as row number.
+** Retorna o número da linha na tabela, necessariamente usando como argumento
+** qualquer valor constante.
 **
 ** Borrowed from http://sqlite.1065341.n5.nabble.com/sequential-row-numbers-from-query-td47370.html
 */
@@ -606,8 +580,6 @@ int RegisterExtensionFunctions(sqlite3 *db)
 
     { "group_bitor",      1, 0, 0, group_bitorStep, group_bitorFinalize },
     { "group_ndxbitor",   1, 0, 0, group_ndxbitorStep, group_bitorFinalize },
-
-    { "product",          1, 0, 0, group_productStep, group_productFinalize },
 
   };
 
