@@ -331,37 +331,35 @@ static int sqlite3ReadUtf8(const unsigned char *z)
 */
 static void reverseFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
 {
-  const char *z;
-  const char *zt;
-  char *rz;
-  char *rzt;
-  int l = 0;
-  int i = 0;
+  unsigned char *z, *t;
+  char *rz, *r;
+  int n;
 
   assert( 1 == argc );
 
-  if ( SQLITE_NULL == sqlite3_value_type(argv[0]) ) {
+  if ( SQLITE_NULL == sqlite3_value_type(argv[0]) )
+  {
     sqlite3_result_null(context);
     return;
   }
-  z = (char *)sqlite3_value_text(argv[0]);
-  l = strlen(z);
-  rz = sqlite3_malloc(l+1);
-  if (!rz) {
+  t = z = (unsigned char *) sqlite3_value_text(argv[0]);
+  n = strlen((char *) z);
+  r = rz = (char *) sqlite3_malloc(n + 1);
+  if (!rz)
+  {
     sqlite3_result_error_nomem(context);
     return;
   }
-  rzt = rz+l;
-  *(rzt--) = '\0';
-
-  zt = z;
-  while ( sqliteCharVal((unsigned char *) zt) != 0 ) {
-    z = zt;
-    sqliteNextChar(zt);
-    for (i=1; zt-i >= z; ++i) {
-      *(rzt--) = *(zt-i);
-    }
+  *(rz += n) = '\0';
+  while (sqliteCharVal(t) != 0)
+  {
+    z = t;
+    sqliteNextChar(t);
+    rz -= n = t - z;
+    memcpy(rz, z, n);
   }
+
+  assert(r == rz);
 
   sqlite3_result_text(context, rz, -1, SQLITE_TRANSIENT);
   sqlite3_free(rz);
@@ -407,33 +405,29 @@ static void zeropadFunc(sqlite3_context *context, int argc, sqlite3_value **argv
   sqlite3_free(z);
 }
 
-/**
- * Copia até 'length' caractéres da string utf8 apontada por 'source' a partir
- * do índice 'offset' inclusive, para a posição de memória apontada por 'buffer'
- * dimensionada préviamente para conter a substring mais o byte terminador null
- * e em caso contrário ocorrerá falha de segmentação.
- * A string apontada por 'source' é preservada conforme definição do argumento
- * como constante, embora o ponteiro seja usado na montagem da substring.
+/*
+ * Copia até 'len' caractéres da string utf8 apontada por 'src' a partir
+ * do índice 'off' inclusive, para a posição de memória apontada por 'buf'
+ * dimensionada para conter a substring mais o byte terminador null.
 */
-static char *strcopy(char * buffer, const char *source, int offset, int length)
+static char *strcopy(char *buf, const char *src, int off, int len)
 {
-  const char *zt;
-  char *rzt;
-  int i, j;
-  /* position the pointer to traverse the utf8 string from offset */
-  zt = source + offset;
-  /* position the pointer to fill the result string */
-  rzt = buffer;
-  /* traverse the utf8 source string filling the buffer string till */
-  /* 'length' characters are copied or till the null byte is found  */
-  for (j=0; j < length && sqliteCharVal((unsigned char *) zt) != 0; j++) {
-    source = zt;
-    sqliteNextChar(zt);
-    /* inner loop to get all character bytes */
-    for (i=1; zt-i >= source; ++i) *(rzt++) = *(zt-i);
+  const char *z;
+  int n;
+  // posiciona o ponteiro descartando a substring offset
+  for (; off > 0 && sqliteCharVal((unsigned char *) src) != 0; --off)
+    sqliteNextChar(src);
+  // contagem dos bytes contíguos da substring alvo
+  for (n=0; len > 0 && sqliteCharVal((unsigned char *) src) != 0; --len)
+  {
+    z = src;
+    sqliteNextChar(src);
+    n += src - z;
   }
-  *(rzt++) = '\0'; /* finalize the buffer string */
-  return buffer;
+  // copia os bytes da substring alvo para o buffer e o finaliza com NUL
+  memcpy(buf, src-n, n);
+  *(buf+n) = '\0';
+  return buf;
 }
 
 /*
