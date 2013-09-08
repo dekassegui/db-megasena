@@ -7,6 +7,9 @@
  *
  * Bitwise aggregation: group_bitor, group_ndxbitor
  *
+ * Regular Expressions: regexp, iregexp, regexp_match, regexp_match_count,
+ *                      regexp_match_position
+ *
  * Miscellaneous: mask60, quadrante, datalocal, datefield, rownum
  *
  * Compile: gcc more-functions.c -fPIC -shared -lm -o more-functions.so
@@ -527,6 +530,259 @@ static void rownumFunc(
   sqlite3_result_int(context, pAux->nNumber);
 }
 
+#include <sys/types.h>
+#include <regex.h>
+
+#define ERROR_MSG_LENGHT  64  // tamanho do buffer da mensagem de erro
+
+/*
+ * Pesquisa se alguma substring da string 'target' corresponde à expressão
+ * regular em 'pattern' compilando a expressão conforme valor de 'flags'
+ * retornando o status da pesquisa na varíavel 'result' e mensagem de erro na
+ * compilação da expressão, se a mesma for mal formada, na variável 'error'.
+ *
+ * A expressão regular deve estar em conformidade com o padrão GNU Regular
+ *  Expressions no modo Extended, suportando as classes:
+ *
+ *    [:alpha:], [:upper:], [:lower:], [:digit:], [:alnum:], [:xdigit:],
+ *    [:space:], [:print:], [:punct:], [:graph:], [:cntrl:]
+ *
+ * e caractéres Unicode devem ser explicitamente declarados.
+ *
+ * O parâmetro de compilação 'flags' deve ser REG_ICASE para que letras
+ * maiúsculas sejam consideradas diferentes de minúsculas ou 0 em caso
+ * contrário.
+ * O buffer da mensagem de erro, string 'error', deve ser dimensionado para
+ * armazenar strings ASCII curtas, não há como prever o tamanho das mensagens
+ * a priori e arbitrariamente sugerimos o valor definido em ERROR_MSG_LENGHT
+ *
+ * O valor retornado é o inteiro 1 se a pesquisa for bem sucedida ou 0 em caso
+ * contrário.
+*/
+static int do_regexp(char *pattern, char *target, int flags, char *error, int *result)
+{
+  regex_t exp;
+  int status = regcomp(&exp, pattern, REG_EXTENDED | REG_NOSUB | flags);
+  if (status == 0) {
+    *result = (regexec(&exp, target, 0, 0, 0) == 0);
+  } else {
+    regerror(status, &exp, error, ERROR_MSG_LENGHT);
+  }
+  regfree(&exp);
+
+  return status;
+}
+
+/*
+ * Testa se alguma substring da string alvo corresponde a uma expressão regular
+ * em conformidade com o padrão GNU Regular Expressions no modo Extended.
+ * A expressão regular considera letras maiúsculas como diferentes de minúsculas
+ * , caracteres Unicode devem ser declarados explicitamente e se a expressão
+ * regular for mal formada, será mostrada a mensagem de erro correspondente.
+ *
+ * O primeiro argumento deve ser a expressão regular e a string alvo da pesquisa
+ * o segundo.
+ *
+ * O valor retornado é um inteiro tal que; sucesso é 1 e fracasso é 0.
+ *
+ * Importante: A função supre o operador REGEXP mencionado na documentação.
+*/
+static void regexpFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
+{
+  char *p, *z, *e;
+  int r;
+
+  p = (char *) sqlite3_value_text(argv[0]);       // pattern
+  z = (char *) sqlite3_value_text(argv[1]);       // target
+  e = (char *) sqlite3_malloc(ERROR_MSG_LENGHT);
+
+  if (do_regexp(p, z, 0, e, &r) == 0) {
+    sqlite3_result_int(context, r);
+  } else {
+    sqlite3_result_error(context, e, -1);
+  }
+  sqlite3_free(e);
+}
+
+/*
+ * Conforme anterior, porém não considera maiúsculas diferentes de minúsculas.
+*/
+static void iregexpFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
+{
+  char *p, *z, *e;
+  int r;
+
+  p = (char *) sqlite3_value_text(argv[0]);       // pattern
+  z = (char *) sqlite3_value_text(argv[1]);       // target
+  e = (char *) sqlite3_malloc(ERROR_MSG_LENGHT);
+
+  if (do_regexp(p, z, REG_ICASE, e, &r) == 0) {
+    sqlite3_result_int(context, r);
+  } else {
+    sqlite3_result_error(context, e, -1);
+  }
+  sqlite3_free(e);
+}
+
+#define MAX_MATCHES 1 // número máximo de identificações numa string qualquer
+
+/*
+ * Retorna na string 'buf', a substring de 'src' identificada pelo uso da
+ * expressão regular compilada 'pexp'.
+ *
+ * Se a pesquisa for mal sucedida, será retornada uma string 'vazia'.
+*/
+static char *regexp_match(regex_t *pexp, char *src, char *buf)
+{
+  regmatch_t matches[MAX_MATCHES];
+  int len = 0;
+
+  if (regexec(pexp, src, MAX_MATCHES, matches, 0) == 0) {
+    len = matches[0].rm_eo - matches[0].rm_so;
+    memcpy(buf, src + matches[0].rm_so, len);
+  }
+  *(buf + len) = '\0';
+
+  return buf;
+}
+
+/*
+ * Retorna a primeira substring da string pesquisada que corresponder à
+ * expressão regular, que pode ser uma string vazia em caso de fracasso.
+ *
+ * O primeiro argumento deve ser a expressão regular e a string alvo da pesquisa
+ * o segundo.
+*/
+static void regexp_matchFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
+{
+  regex_t exp;              // compiled expression
+  char *pattern, *z, *rz;
+  int v;
+
+  pattern = (char *) sqlite3_value_text(argv[0]);
+  z = (char *) sqlite3_value_text(argv[1]);
+
+  v = regcomp(&exp, pattern, REG_EXTENDED);
+  if (v == 0) {
+    rz = sqlite3_malloc( strlen(z) + 1 );
+    regexp_match(&exp, z, rz);
+    regfree(&exp);
+    sqlite3_result_text(context, rz, -1, SQLITE_TRANSIENT);
+    sqlite3_free(rz);
+  } else {
+    z = (char *) sqlite3_malloc( ERROR_MSG_LENGHT );
+    regerror(v, &exp, z, ERROR_MSG_LENGHT);
+    sqlite3_result_error(context, z, -1);
+    sqlite3_free(z);
+  }
+}
+
+/*
+ * Retorna o número de substrings de 'target' identificadas pelo uso da
+ * expressão regular compilada 'pexp'.
+*/
+static int regexp_match_count(regex_t *pexp, char *target)
+{
+  regmatch_t matches[MAX_MATCHES];
+  int count=0, offset=0;
+
+  while ( *(target+offset) != '\0'
+         && regexec(pexp, target+offset, MAX_MATCHES, matches, 0) == 0 )
+  {
+    offset += matches[0].rm_eo;
+    count++;
+  }
+
+  return count;
+}
+
+/*
+ * Retorna o número de substrings da string pesquisada que corresponderem à
+ * expressão regular.
+ *
+ * O primeiro argumento deve ser a expressão regular e a string alvo da pesquisa
+ * o segundo.
+*/
+static void regexp_match_countFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
+{
+  regex_t exp;
+  char *pattern, *z;
+  int v;
+
+  pattern = (char *) sqlite3_value_text(argv[0]);
+  z = (char *) sqlite3_value_text(argv[1]);
+
+  v = regcomp(&exp, pattern, REG_EXTENDED);
+  if (v == 0) {
+    v = regexp_match_count(&exp, z);
+    regfree(&exp);
+    sqlite3_result_int(context, v);
+  } else {
+    z = (char *) sqlite3_malloc( ERROR_MSG_LENGHT );
+    regerror(v, &exp, z, ERROR_MSG_LENGHT);
+    sqlite3_result_error(context, z, -1);
+    sqlite3_free(z);
+  }
+}
+
+/*
+ * Retorna a posição da substring de 'target', com número de ordem 'group' na
+ * sequência de identificações pelo uso da expressão regular compilada 'pexp'.
+ * Se a pesquisa for mal sucedida ou se o número de ordem desejado for maior que
+ * o número de substrings identificadas ou se o número de ordem for menor que 0
+ * então será retornado o valor -1.
+ *
+ * Importante: Esta posição corresponde ao offset da substring em 'bytes' que
+ *             serão chars apenas no ASCII.
+*/
+static int regexp_match_position(regex_t *pexp, char *target, int group)
+{
+  regmatch_t matches[MAX_MATCHES];
+  int offset=0, start=-1;
+
+  while ( *(target+offset) != '\0' && group > 0
+         && regexec(pexp, target+offset, MAX_MATCHES, matches, 0) == 0 )
+  {
+    start = offset + matches[0].rm_so;
+    offset += matches[0].rm_eo;
+    --group;
+  }
+
+  return (group == 0 ? start : -1);
+}
+
+/*
+ * Retorna a posição de uma das substring que correspondem à expressão regular.
+ *
+ * O primeiro argumento deve ser a expressão regular, a string alvo da pesquisa
+ * o segundo e o número de ordem da substring o terceiro.
+ *
+ * Se o número de ordem for 0 ou maior que o número de substrings identificadas
+ * então será retornado o valor inteiro -1.
+*/
+static void regexp_match_positionFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
+{
+  regex_t exp;
+  char *pattern, *z;
+  int v, group;
+
+  pattern = (char *) sqlite3_value_text(argv[0]);
+  z = (char *) sqlite3_value_text(argv[1]);
+  group = sqlite3_value_int(argv[2]);
+
+  v = regcomp(&exp, pattern, REG_EXTENDED);
+  if (v == 0) {
+    v = regexp_match_position(&exp, z, group);
+    regfree(&exp);
+    sqlite3_result_int(context, v);
+  } else {
+    z = (char *) sqlite3_malloc( ERROR_MSG_LENGHT );
+    regerror(v, &exp, z, ERROR_MSG_LENGHT);
+    sqlite3_result_error(context, z, -1);
+    sqlite3_free(z);
+  }
+}
+
 /*
 ** This function registered all of the above C functions as SQL
 ** functions.  This should be the only routine in this file with
@@ -559,6 +815,12 @@ int RegisterExtensionFunctions(sqlite3 *db)
     { "datalocal",          1, 0, SQLITE_UTF8,    0, datalocalFunc },
 
     { "rownum",             1, 0, SQLITE_UTF8,    0, rownumFunc },
+
+    { "regexp",                 2, 0, SQLITE_UTF8, 0, regexpFunc },
+    { "iregexp",                2, 0, SQLITE_UTF8, 0, iregexpFunc },
+    { "regexp_match",           2, 0, SQLITE_UTF8, 0, regexp_matchFunc },
+    { "regexp_match_count",     2, 0, SQLITE_UTF8, 0, regexp_match_countFunc },
+    { "regexp_match_position",  3, 0, SQLITE_UTF8, 0, regexp_match_positionFunc },
 
   };
 
