@@ -533,46 +533,6 @@ static void rownumFunc(
 #include <sys/types.h>
 #include <regex.h>
 
-#define ERROR_MSG_LENGHT  64  // tamanho do buffer da mensagem de erro
-
-/*
- * Pesquisa se alguma substring da string 'target' corresponde à expressão
- * regular em 'pattern' compilando a expressão conforme valor de 'flags'
- * retornando o status da pesquisa na varíavel 'result' e mensagem de erro na
- * compilação da expressão, se a mesma for mal formada, na variável 'error'.
- *
- * A expressão regular deve estar em conformidade com o padrão GNU Regular
- *  Expressions no modo Extended, suportando as classes:
- *
- *    [:alpha:], [:upper:], [:lower:], [:digit:], [:alnum:], [:xdigit:],
- *    [:space:], [:print:], [:punct:], [:graph:], [:cntrl:]
- *
- * e caractéres Unicode devem ser explicitamente declarados.
- *
- * O parâmetro de compilação 'flags' deve ser REG_ICASE para que letras
- * maiúsculas sejam consideradas diferentes de minúsculas ou 0 em caso
- * contrário.
- * O buffer da mensagem de erro, string 'error', deve ser dimensionado para
- * armazenar strings ASCII curtas, não há como prever o tamanho das mensagens
- * a priori e arbitrariamente sugerimos o valor definido em ERROR_MSG_LENGHT
- *
- * O valor retornado é o inteiro 1 se a pesquisa for bem sucedida ou 0 em caso
- * contrário.
-*/
-static int do_regexp(char *pattern, char *target, int flags, char *error, int *result)
-{
-  regex_t exp;
-  int status = regcomp(&exp, pattern, REG_EXTENDED | REG_NOSUB | flags);
-  if (status == 0) {
-    *result = (regexec(&exp, target, 0, 0, 0) == 0);
-  } else {
-    regerror(status, &exp, error, ERROR_MSG_LENGHT);
-  }
-  regfree(&exp);
-
-  return status;
-}
-
 /*
  * Testa se alguma substring da string alvo corresponde a uma expressão regular
  * em conformidade com o padrão GNU Regular Expressions no modo Extended.
@@ -589,19 +549,24 @@ static int do_regexp(char *pattern, char *target, int flags, char *error, int *r
 */
 static void regexpFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
 {
-  char *p, *z, *e;
-  int r;
+  regex_t exp;
+  char *p, *z;
+  int r, v;
 
   p = (char *) sqlite3_value_text(argv[0]);       // pattern
   z = (char *) sqlite3_value_text(argv[1]);       // target
-  e = (char *) sqlite3_malloc(ERROR_MSG_LENGHT);
-
-  if (do_regexp(p, z, 0, e, &r) == 0) {
+  v = regcomp(&exp, p, REG_EXTENDED | REG_NOSUB);
+  if (v == 0) {
+    r = (regexec(&exp, z, 0, 0, 0) == 0);
     sqlite3_result_int(context, r);
   } else {
-    sqlite3_result_error(context, e, -1);
+    r = regerror(v, &exp, NULL, 0);
+    z = (char *) sqlite3_malloc(r);
+    (void) regerror(v, &exp, z, r);
+    sqlite3_result_error(context, z, -1);
+    sqlite3_free(z);
   }
-  sqlite3_free(e);
+  regfree(&exp);
 }
 
 /*
@@ -609,19 +574,25 @@ static void regexpFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
 */
 static void iregexpFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
 {
-  char *p, *z, *e;
-  int r;
+  regex_t exp;
+  char *p, *z;
+  int r, v;
 
   p = (char *) sqlite3_value_text(argv[0]);       // pattern
   z = (char *) sqlite3_value_text(argv[1]);       // target
-  e = (char *) sqlite3_malloc(ERROR_MSG_LENGHT);
 
-  if (do_regexp(p, z, REG_ICASE, e, &r) == 0) {
+  v = regcomp(&exp, p, REG_EXTENDED | REG_NOSUB | REG_ICASE);
+  if (v == 0) {
+    r = (regexec(&exp, z, 0, 0, 0) == 0);
     sqlite3_result_int(context, r);
   } else {
-    sqlite3_result_error(context, e, -1);
+    r = regerror(v, &exp, NULL, 0);
+    z = (char *) sqlite3_malloc(r);
+    (void) regerror(v, &exp, z, r);
+    sqlite3_result_error(context, z, -1);
+    sqlite3_free(z);
   }
-  sqlite3_free(e);
+  regfree(&exp);
 }
 
 #define MAX_MATCHES 1 // número máximo de identificações numa string qualquer
@@ -657,7 +628,7 @@ static void regexp_matchFunc(sqlite3_context *context, int argc, sqlite3_value *
 {
   regex_t exp;              // compiled expression
   char *pattern, *z, *rz;
-  int v;
+  int v, r;
 
   pattern = (char *) sqlite3_value_text(argv[0]);
   z = (char *) sqlite3_value_text(argv[1]);
@@ -666,15 +637,16 @@ static void regexp_matchFunc(sqlite3_context *context, int argc, sqlite3_value *
   if (v == 0) {
     rz = sqlite3_malloc( strlen(z) + 1 );
     regexp_match(&exp, z, rz);
-    regfree(&exp);
     sqlite3_result_text(context, rz, -1, SQLITE_TRANSIENT);
     sqlite3_free(rz);
   } else {
-    z = (char *) sqlite3_malloc( ERROR_MSG_LENGHT );
-    regerror(v, &exp, z, ERROR_MSG_LENGHT);
+    r = regerror(v, &exp, NULL, 0);
+    z = (char *) sqlite3_malloc(r);
+    (void) regerror(v, &exp, z, r);
     sqlite3_result_error(context, z, -1);
     sqlite3_free(z);
   }
+  regfree(&exp);
 }
 
 /*
@@ -707,7 +679,7 @@ static void regexp_match_countFunc(sqlite3_context *context, int argc, sqlite3_v
 {
   regex_t exp;
   char *pattern, *z;
-  int v;
+  int v, r;
 
   pattern = (char *) sqlite3_value_text(argv[0]);
   z = (char *) sqlite3_value_text(argv[1]);
@@ -715,14 +687,15 @@ static void regexp_match_countFunc(sqlite3_context *context, int argc, sqlite3_v
   v = regcomp(&exp, pattern, REG_EXTENDED);
   if (v == 0) {
     v = regexp_match_count(&exp, z);
-    regfree(&exp);
     sqlite3_result_int(context, v);
   } else {
-    z = (char *) sqlite3_malloc( ERROR_MSG_LENGHT );
-    regerror(v, &exp, z, ERROR_MSG_LENGHT);
+    r = regerror(v, &exp, NULL, 0);
+    z = (char *) sqlite3_malloc(r);
+    (void) regerror(v, &exp, z, r);
     sqlite3_result_error(context, z, -1);
     sqlite3_free(z);
   }
+  regfree(&exp);
 }
 
 /*
@@ -764,7 +737,7 @@ static void regexp_match_positionFunc(sqlite3_context *context, int argc, sqlite
 {
   regex_t exp;
   char *pattern, *z;
-  int v, group;
+  int v, r, group;
 
   pattern = (char *) sqlite3_value_text(argv[0]);
   z = (char *) sqlite3_value_text(argv[1]);
@@ -773,14 +746,15 @@ static void regexp_match_positionFunc(sqlite3_context *context, int argc, sqlite
   v = regcomp(&exp, pattern, REG_EXTENDED);
   if (v == 0) {
     v = regexp_match_position(&exp, z, group);
-    regfree(&exp);
     sqlite3_result_int(context, v);
   } else {
-    z = (char *) sqlite3_malloc( ERROR_MSG_LENGHT );
-    regerror(v, &exp, z, ERROR_MSG_LENGHT);
+    r = regerror(v, &exp, NULL, 0);
+    z = (char *) sqlite3_malloc(r);
+    regerror(v, &exp, z, r);
     sqlite3_result_error(context, z, -1);
     sqlite3_free(z);
   }
+  regfree(&exp);
 }
 
 /*
