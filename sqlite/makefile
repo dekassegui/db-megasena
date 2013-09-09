@@ -1,6 +1,6 @@
 # Compiles loadable extension library for sqlite3.
 #
-# Linux users: Package libsqlite3-dev is required.
+# Linux users: Packages libsqlite3-dev and libpcre3-dev are required.
 #
 # Ubuntu users: DO NOT change compilation parameters order.
 #
@@ -9,8 +9,8 @@ FILE = more-functions.c
 OUTPUT = $(FILE:.c=.so)
 
 build: $(FILE)
-	$(CC) $^ -Wall -fPIC -shared -lm -o $(OUTPUT)
+	$(CC) $^ -Wall -fPIC -shared -lm -lpcre -o $(OUTPUT)
 
 check:
-	sudo ldconfig -p | grep "libsqlite"
+	sudo ldconfig -p | grep -E "lib(pcre|sqlite)"
 
