@@ -12,7 +12,7 @@
  *
  * Miscellaneous: mask60, quadrante, datalocal, datefield, rownum
  *
- * Compile: gcc more-functions.c -fPIC -shared -lm -o more-functions.so
+ * Compile: gcc more-functions.c -fPIC -shared -lm -lpcre -o more-functions.so
  *
  * Usage: .load "path_to_lib/more-functions.so"
  * or also for JDBC: select load_extension("path_to_lib/more-functions.so");
@@ -532,6 +532,19 @@ static void rownumFunc(
 
 #include <pcre.h>
 
+typedef struct cache_entry {
+  pcre *p;
+  pcre_extra *e;
+}
+cache_entry;
+
+static void release_cache_entry(void *ptr)
+{
+  pcre_free( (*((cache_entry *) ptr)).p );
+  pcre_free_study( (*((cache_entry *) ptr)).e );
+  sqlite3_free(ptr);
+}
+
 /*
  * Testa se alguma substring da string alvo corresponde a uma expressão regular
  * em conformidade com o padrão Perl Compatible Regular Expressions (aka PCRE).
@@ -545,6 +558,7 @@ static void rownumFunc(
 */
 static void regexp(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
+  cache_entry *c;
   const char *re, *str, *err;
   char *err2;
   pcre *p;
@@ -565,20 +579,30 @@ static void regexp(sqlite3_context *ctx, int argc, sqlite3_value **argv)
     return ;
   }
 
-  p = pcre_compile(re, 0, &err, &r, NULL);
-  if (!p)
-  {
-    err2 = sqlite3_mprintf("%s: %s (offset %d)", re, err, r);
-    sqlite3_result_error(ctx, err2, -1);
-    sqlite3_free(err2);
-  } else
-  {
-    e = pcre_study(p, 0, &err);
-    r = pcre_exec(p, e, str, strlen(str), 0, 0, NULL, 0);
-    sqlite3_result_int(ctx, r >= 0);
-    pcre_free(p);
-    pcre_free(e);
+  c = sqlite3_get_auxdata(ctx, 0);
+  if (!c) {
+    c = (cache_entry *) sqlite3_malloc(sizeof(cache_entry));
+    if (!c) {
+      sqlite3_result_error_nomem(ctx);
+      return ;
+    }
+    (*c).p = p = pcre_compile(re, 0, &err, &r, NULL);
+    if (!p)
+    {
+      err2 = sqlite3_mprintf("%s: %s (offset %d)", re, err, r);
+      sqlite3_result_error(ctx, err2, -1);
+      sqlite3_free(err2);
+      return ;
+    }
+    (*c).e = e = pcre_study(p, 0, &err);
+    sqlite3_set_auxdata(ctx, 0, c, release_cache_entry);
+  } else {
+    p = (*c).p;
+    e = (*c).e;
   }
+
+  r = pcre_exec(p, e, str, strlen(str), 0, 0, NULL, 0);
+  sqlite3_result_int(ctx, r >= 0);
 }
 
 /*
@@ -590,11 +614,13 @@ static void regexp(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 */
 static void regexp_match(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
+  cache_entry *c;
   const char *re, *str, *err;
   char *z;
   pcre *p;
   pcre_extra *e;
-  int ovector[3];
+  int ovector[10];
+  int wspace[20];
   int r, len;
 
   assert(argc == 2);
@@ -611,30 +637,40 @@ static void regexp_match(sqlite3_context *ctx, int argc, sqlite3_value **argv)
     return ;
   }
 
-  p = pcre_compile(re, 0, &err, &r, NULL);
-  if (!p)
+  c = sqlite3_get_auxdata(ctx, 0);
+  if (!c) {
+    c = (cache_entry *) sqlite3_malloc(sizeof(cache_entry));
+    if (!c) {
+      sqlite3_result_error_nomem(ctx);
+      return ;
+    }
+    (*c).p = p = pcre_compile(re, 0, &err, &r, NULL);
+    if (!p)
+    {
+      z = sqlite3_mprintf("%s: %s (offset %d)", re, err, r);
+      sqlite3_result_error(ctx, z, -1);
+      sqlite3_free(z);
+      return ;
+    }
+    (*c).e = e = pcre_study(p, 0, &err);
+    sqlite3_set_auxdata(ctx, 0, c, release_cache_entry);
+  } else {
+    p = (*c).p;
+    e = (*c).e;
+  }
+
+  r = pcre_dfa_exec(p, e, str, strlen(str), 0, 0, ovector, 10, wspace, 20);
+  if (r >= 0)
   {
-    z = sqlite3_mprintf("%s: %s (offset %d)", re, err, r);
-    sqlite3_result_error(ctx, z, -1);
+    len = ovector[1] - ovector[0];
+    z = (char *) sqlite3_malloc(len+1);
+    memcpy(z, str + ovector[0], len);
+    *(z + len) = '\0';
+    sqlite3_result_text(ctx, z, -1, SQLITE_TRANSIENT);
     sqlite3_free(z);
   } else
   {
-    e = pcre_study(p, 0, &err);
-    r = pcre_exec(p, e, str, strlen(str), 0, 0, ovector, 3);
-    if (r >= 0)
-    {
-      len = ovector[1] - ovector[0];
-      z = (char *) sqlite3_malloc(len);
-      memcpy(z, str + ovector[0], len);
-      *(z + len) = '\0';
-      sqlite3_result_text(ctx, z, -1, SQLITE_TRANSIENT);
-      sqlite3_free(z);
-    } else
-    {
-      sqlite3_result_null(ctx);
-    }
-    pcre_free(p);
-    pcre_free(e);
+    sqlite3_result_null(ctx);
   }
 }
 
@@ -647,13 +683,15 @@ static void regexp_match(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 */
 static void regexp_match_count(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
+  cache_entry *c;
   const char *re, *str, *err;
   char *err2;
   pcre *p;
   pcre_extra *e;
-  int len, count;
+  int len, count, r;
   int *offset;
-  int ovector[] = { 0, 0, 0 };
+  int ovector[10];
+  int wspace[20];
 
   assert(argc == 2);
 
@@ -669,25 +707,37 @@ static void regexp_match_count(sqlite3_context *ctx, int argc, sqlite3_value **a
     return ;
   }
 
-  p = pcre_compile(re, 0, &err, &len, NULL);
-  if (!p)
-  {
-    err2 = sqlite3_mprintf("%s: %s (offset %d)", re, err, len);
-    sqlite3_result_error(ctx, err2, -1);
-    sqlite3_free(err2);
-  } else
-  {
-    e = pcre_study(p, 0, &err);
-    offset = ovector + 1;
-    len = strlen(str);
-    count = 0;
-    while (pcre_exec(p, e, str, len, *offset, 0, ovector, 3) >= 0) {
-      ++count;
+  c = sqlite3_get_auxdata(ctx, 0);
+  if (!c) {
+    c = (cache_entry *) sqlite3_malloc(sizeof(cache_entry));
+    if (!c) {
+      sqlite3_result_error_nomem(ctx);
+      return ;
     }
-    sqlite3_result_int(ctx, count);
-    pcre_free(p);
-    pcre_free(e);
+    (*c).p = p = pcre_compile(re, 0, &err, &r, NULL);
+    if (!p)
+    {
+      err2 = sqlite3_mprintf("%s: %s (offset %d)", re, err, r);
+      sqlite3_result_error(ctx, err2, -1);
+      sqlite3_free(err2);
+      return ;
+    }
+    (*c).e = e = pcre_study(p, 0, &err);
+    sqlite3_set_auxdata(ctx, 0, c, release_cache_entry);
+  } else {
+    p = (*c).p;
+    e = (*c).e;
   }
+
+  offset = ovector + 1;
+  *offset = 0;
+  len = strlen(str);
+  count = 0;
+  while (pcre_dfa_exec(p, e, str, len, *offset, 0, ovector, 10, wspace, 20) >= 0)
+  {
+    ++count;
+  }
+  sqlite3_result_int(ctx, count);
 }
 
 /*
@@ -702,13 +752,15 @@ static void regexp_match_count(sqlite3_context *ctx, int argc, sqlite3_value **a
 */
 static void regexp_match_position(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
+  cache_entry *c;
   const char *re, *str, *err;
   char *err2;
   pcre *p;
   pcre_extra *e;
-  int group, len;
-  int *offset;
-  int ovector[] = { -1, 0, 0 };
+  int group, len, r;
+  int *offset, *position;
+  int ovector[10];
+  int wspace[20];
 
   assert(argc == 3);
 
@@ -725,25 +777,43 @@ static void regexp_match_position(sqlite3_context *ctx, int argc, sqlite3_value 
   }
 
   group = sqlite3_value_int(argv[2]);
-
-  p = pcre_compile(re, 0, &err, &len, NULL);
-  if (!p) {
-    err2 = sqlite3_mprintf("%s: %s (offset %d)", re, err, len);
-    sqlite3_result_error(ctx, err2, -1);
-    sqlite3_free(err2);
-  } else
-  {
-    e = pcre_study(p, 0, &err);
-    offset = ovector + 1;
-    len = strlen(str);
-    while (group > 0 && pcre_exec(p, e, str, len, *offset, 0, ovector, 3) >= 0)
-    {
-      --group;
-    }
-    sqlite3_result_int(ctx, (group > 0 ? -1 : *ovector));
-    pcre_free(p);
-    pcre_free(e);
+  if (group <= 0) {
+    sqlite3_result_error(ctx, "matching substring order must to be > 0", -1);
+    return ;
   }
+
+  c = sqlite3_get_auxdata(ctx, 0);
+  if (!c) {
+    c = (cache_entry *) sqlite3_malloc(sizeof(cache_entry));
+    if (!c) {
+      sqlite3_result_error_nomem(ctx);
+      return ;
+    }
+    (*c).p = p = pcre_compile(re, 0, &err, &r, NULL);
+    if (!p)
+    {
+      err2 = sqlite3_mprintf("%s: %s (offset %d)", re, err, r);
+      sqlite3_result_error(ctx, err2, -1);
+      sqlite3_free(err2);
+      return ;
+    }
+    (*c).e = e = pcre_study(p, 0, &err);
+    sqlite3_set_auxdata(ctx, 0, c, release_cache_entry);
+  } else {
+    p = (*c).p;
+    e = (*c).e;
+  }
+
+  position = ovector;
+  *position = -1;
+  offset = ovector + 1;
+  *offset = 0;
+  len = strlen(str);
+  while (group > 0 && pcre_dfa_exec(p, e, str, len, *offset, 0, ovector, 10, wspace, 20) >= 0)
+  {
+    --group;
+  }
+  sqlite3_result_int(ctx, (group > 0 ? -1 : *position));
 }
 
 /*
