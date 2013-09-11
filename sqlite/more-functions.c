@@ -540,8 +540,8 @@ cache_entry;
 
 static void release_cache_entry(void *ptr)
 {
-  pcre_free( (*((cache_entry *) ptr)).p );
-  pcre_free_study( (*((cache_entry *) ptr)).e );
+  pcre_free( ((cache_entry *) ptr)->p );
+  pcre_free_study( ((cache_entry *) ptr)->e );
   sqlite3_free(ptr);
 }
 
@@ -561,8 +561,6 @@ static void regexp(sqlite3_context *ctx, int argc, sqlite3_value **argv)
   cache_entry *c;
   const char *re, *str, *err;
   char *err2;
-  pcre *p;
-  pcre_extra *e;
   int r;
 
   assert(argc == 2);
@@ -586,22 +584,19 @@ static void regexp(sqlite3_context *ctx, int argc, sqlite3_value **argv)
       sqlite3_result_error_nomem(ctx);
       return ;
     }
-    (*c).p = p = pcre_compile(re, 0, &err, &r, NULL);
-    if (!p)
+    c->p = pcre_compile(re, 0, &err, &r, NULL);
+    if (!c->p)
     {
       err2 = sqlite3_mprintf("%s: %s (offset %d)", re, err, r);
       sqlite3_result_error(ctx, err2, -1);
       sqlite3_free(err2);
       return ;
     }
-    (*c).e = e = pcre_study(p, 0, &err);
+    c->e = pcre_study(c->p, 0, &err);
     sqlite3_set_auxdata(ctx, 0, c, release_cache_entry);
-  } else {
-    p = (*c).p;
-    e = (*c).e;
   }
 
-  r = pcre_exec(p, e, str, strlen(str), 0, 0, NULL, 0);
+  r = pcre_exec(c->p, c->e, str, strlen(str), 0, 0, NULL, 0);
   sqlite3_result_int(ctx, r >= 0);
 }
 
@@ -615,13 +610,10 @@ static void regexp(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 static void regexp_match(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
   cache_entry *c;
-  const char *re, *str, *err;
-  char *z;
-  pcre *p;
-  pcre_extra *e;
-  int ovector[10];
-  int wspace[20];
-  int r, len;
+  const char *re, *err;
+  char *z, *str;
+  int ovector[6];
+  int r;
 
   assert(argc == 2);
 
@@ -631,7 +623,7 @@ static void regexp_match(sqlite3_context *ctx, int argc, sqlite3_value **argv)
     return ;
   }
 
-  str = (const char *) sqlite3_value_text(argv[1]);
+  str = (char *) sqlite3_value_text(argv[1]);
   if (!str) {
     sqlite3_result_error(ctx, "no string", -1);
     return ;
@@ -644,33 +636,36 @@ static void regexp_match(sqlite3_context *ctx, int argc, sqlite3_value **argv)
       sqlite3_result_error_nomem(ctx);
       return ;
     }
-    (*c).p = p = pcre_compile(re, 0, &err, &r, NULL);
-    if (!p)
+    c->p = pcre_compile(re, 0, &err, &r, NULL);
+    if (!c->p)
     {
       z = sqlite3_mprintf("%s: %s (offset %d)", re, err, r);
       sqlite3_result_error(ctx, z, -1);
       sqlite3_free(z);
       return ;
     }
-    (*c).e = e = pcre_study(p, 0, &err);
+    c->e = pcre_study(c->p, 0, &err);
     sqlite3_set_auxdata(ctx, 0, c, release_cache_entry);
-  } else {
-    p = (*c).p;
-    e = (*c).e;
   }
 
-  r = pcre_dfa_exec(p, e, str, strlen(str), 0, 0, ovector, 10, wspace, 20);
+  r = pcre_exec(c->p, c->e, str, strlen(str), 0, 0, ovector, 6);
   if (r >= 0)
   {
-    len = ovector[1] - ovector[0];
-    z = (char *) sqlite3_malloc(len+1);
-    memcpy(z, str + ovector[0], len);
-    *(z + len) = '\0';
-    sqlite3_result_text(ctx, z, -1, SQLITE_TRANSIENT);
-    sqlite3_free(z);
+    *(str + ovector[1]) = '\0';
+    sqlite3_result_text(ctx, str+ovector[0], -1, SQLITE_TRANSIENT);
   } else
   {
-    sqlite3_result_null(ctx);
+    switch (r) {
+      case PCRE_ERROR_NOMATCH:
+      case PCRE_ERROR_NULL:
+        sqlite3_result_null(ctx);
+        break;
+      default:
+        z = sqlite3_mprintf("PCRE execution failed with code %d.", r);
+        sqlite3_result_error(ctx, z, -1);
+        sqlite3_free(z);
+        break;
+    }
   }
 }
 
@@ -686,12 +681,9 @@ static void regexp_match_count(sqlite3_context *ctx, int argc, sqlite3_value **a
   cache_entry *c;
   const char *re, *str, *err;
   char *err2;
-  pcre *p;
-  pcre_extra *e;
   int len, count, r;
   int *offset;
   int ovector[10];
-  int wspace[20];
 
   assert(argc == 2);
 
@@ -714,30 +706,30 @@ static void regexp_match_count(sqlite3_context *ctx, int argc, sqlite3_value **a
       sqlite3_result_error_nomem(ctx);
       return ;
     }
-    (*c).p = p = pcre_compile(re, 0, &err, &r, NULL);
-    if (!p)
+    c->p = pcre_compile(re, 0, &err, &r, NULL);
+    if (!c->p)
     {
       err2 = sqlite3_mprintf("%s: %s (offset %d)", re, err, r);
       sqlite3_result_error(ctx, err2, -1);
       sqlite3_free(err2);
       return ;
     }
-    (*c).e = e = pcre_study(p, 0, &err);
+    c->e = pcre_study(c->p, 0, &err);
     sqlite3_set_auxdata(ctx, 0, c, release_cache_entry);
-  } else {
-    p = (*c).p;
-    e = (*c).e;
   }
 
   offset = ovector + 1;
   *offset = 0;
   len = strlen(str);
   count = 0;
-  while (pcre_dfa_exec(p, e, str, len, *offset, 0, ovector, 10, wspace, 20) >= 0)
-  {
-    ++count;
+  while ((r = pcre_exec(c->p, c->e, str, len, *offset, 0, ovector, 10)) >= 0) ++count;
+  if (r == PCRE_ERROR_NOMATCH || r == PCRE_ERROR_NULL) {
+    sqlite3_result_int(ctx, count);
+  } else {
+    err2 = sqlite3_mprintf("PCRE execution failed with code %d.", r);
+    sqlite3_result_error(ctx, err2, -1);
+    sqlite3_free(err2);
   }
-  sqlite3_result_int(ctx, count);
 }
 
 /*
@@ -755,12 +747,9 @@ static void regexp_match_position(sqlite3_context *ctx, int argc, sqlite3_value 
   cache_entry *c;
   const char *re, *str, *err;
   char *err2;
-  pcre *p;
-  pcre_extra *e;
   int group, len, r;
   int *offset, *position;
   int ovector[10];
-  int wspace[20];
 
   assert(argc == 3);
 
@@ -789,19 +778,16 @@ static void regexp_match_position(sqlite3_context *ctx, int argc, sqlite3_value 
       sqlite3_result_error_nomem(ctx);
       return ;
     }
-    (*c).p = p = pcre_compile(re, 0, &err, &r, NULL);
-    if (!p)
+    c->p = pcre_compile(re, 0, &err, &r, NULL);
+    if (!c->p)
     {
       err2 = sqlite3_mprintf("%s: %s (offset %d)", re, err, r);
       sqlite3_result_error(ctx, err2, -1);
       sqlite3_free(err2);
       return ;
     }
-    (*c).e = e = pcre_study(p, 0, &err);
+    c->e = pcre_study(c->p, 0, &err);
     sqlite3_set_auxdata(ctx, 0, c, release_cache_entry);
-  } else {
-    p = (*c).p;
-    e = (*c).e;
   }
 
   position = ovector;
@@ -809,11 +795,18 @@ static void regexp_match_position(sqlite3_context *ctx, int argc, sqlite3_value 
   offset = ovector + 1;
   *offset = 0;
   len = strlen(str);
-  while (group > 0 && pcre_dfa_exec(p, e, str, len, *offset, 0, ovector, 10, wspace, 20) >= 0)
-  {
+  while (group > 0) {
+    r = pcre_exec(c->p, c->e, str, len, *offset, 0, ovector, 10);
+    if (r < 0) break;
     --group;
   }
-  sqlite3_result_int(ctx, (group > 0 ? -1 : *position));
+  if (r == PCRE_ERROR_NOMATCH || r == PCRE_ERROR_NULL || r >= 0) {
+    sqlite3_result_int(ctx, (group > 0 ? -1 : *position));
+  } else {
+    err2 = sqlite3_mprintf("PCRE execution failed with code %d.", r);
+    sqlite3_result_error(ctx, err2, -1);
+    sqlite3_free(err2);
+  }
 }
 
 /*
