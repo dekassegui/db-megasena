@@ -2,9 +2,12 @@
 #
 # Compiles loadable extension library for sqlite3.
 #
-# Linux users: Package libsqlite3-dev and libpcre3-dev are required.
+# Linux users: Package libsqlite3-dev is required
+#              and libpcre3-dev is also required
+#              only if PCRE support is wanted
 #
 # Ubuntu users: DO NOT change compilation parameters order.
 #
 SRC='more-functions.c'
-gcc $SRC -fPIC -shared -lm -lpcre -o ${SRC%.*}.so
+#
+gcc $SRC -D PCRE -fPIC -shared -lm -lpcre -o ${SRC%.*}.so
