@@ -8,6 +8,16 @@
 #
 # Ubuntu users: DO NOT change compilation parameters order.
 #
+# Run with argument GNU-REGEX to alternate support to GNU Regex.
+#
 SRC='more-functions.c'
 #
-gcc $SRC -D PCRE -fPIC -shared -lm -lpcre -o ${SRC%.*}.so
+shopt -s nocasematch
+if [[ $1 =~ ^GNU-REGEX$ ]];
+then
+  echo 'Compiling to support GNU Regular Expressions aka GNU Regex.'
+  gcc $SRC -fPIC -shared -lm -o ${SRC%.*}.so
+else
+  echo 'Compiling to support Perl Compatible Regular Expressions aka PCRE.'
+  gcc $SRC -D PCRE -fPIC -shared -lm -lpcre -o ${SRC%.*}.so
+fi

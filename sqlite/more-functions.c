@@ -10,7 +10,7 @@
  * Regular Expressions: regexp, iregexp (only in PCRE), regexp_match,
  *                      regexp_match_count, regexp_match_position
  *
- * Miscellaneous: mask60, quadrante, datalocal, datefield, rownum
+ * Miscellaneous: mask60, quadrante, datalocal, datefield, chkdate, rownum
  *
  * Compile: gcc more-functions.c -fPIC -shared -lm -lpcre -o more-functions.so
  *
@@ -30,9 +30,9 @@ SQLITE_EXTENSION_INIT1
 #include <string.h>
 #include <stdint.h>
 
-typedef uint8_t         u8;
-typedef uint16_t        u16;
-typedef int64_t         i64;
+typedef uint8_t   u8;
+typedef uint16_t  u16;
+typedef int64_t   i64;
 
 #include <math.h>
 #include <errno.h>		/* LMH 2007-03-25 */
@@ -40,7 +40,6 @@ typedef int64_t         i64;
 /*
  * Wraps the pow math.h function
 */
-
 static void powerFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
 {
   double r1 = 0.0;
@@ -71,10 +70,8 @@ static void powerFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
 
 static char *int2bin(i64 n, char *buf)
 {
-  int i;
-  char *t = buf + I64_NBITS;
-  *t = '\0';
-  for (i=I64_NBITS; i>0; i--, n >>= 1) *(--t) = (n & 1) + '0';
+  char *t;
+  for (t = buf+I64_NBITS, *t = '\0'; t != buf; n >>= 1) *(--t) = (n & 1) | '0';
   return buf;
 }
 
@@ -84,11 +81,13 @@ static char *int2bin(i64 n, char *buf)
 static void int2binFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
 {
   char *buffer;
-  i64 iVal = 0;
+  i64 iVal;
+
   assert( 1 == argc );
+
   if ( SQLITE_INTEGER == sqlite3_value_type(argv[0]) ) {
     iVal = sqlite3_value_int64(argv[0]);
-    buffer = sqlite3_malloc(I64_NBITS+1);
+    buffer = sqlite3_malloc( I64_NBITS+1 );
     if (!buffer) {
       sqlite3_result_error_nomem(context);
     } else {
@@ -101,56 +100,59 @@ static void int2binFunc(sqlite3_context *context, int argc, sqlite3_value **argv
   }
 }
 
-#define N_DEZENAS 60 /* número de dezenas da mega-sena */
+#define N_DEZENAS 60 /* quantidade de números da Mega-Sena */
 
-/**
- * Monta máscara de incidência das dezenas da mega-sena agrupadas via bitwise OR
- * no único argumento inteiro.
+/*
+ * Monta máscara de incidência dos números da Mega-Sena agrupados via
+ * bitwise OR no único argumento de tipo inteiro.
 */
 static void mask60Func(sqlite3_context *context, int argc, sqlite3_value **argv)
 {
-  char *buffer, *t;
-  i64 iVal = 0;
-  int i = 0;
+  char *buffer;
+  i64 iVal;
+  int i;
+
   assert( 1 == argc );
+
   if ( SQLITE_INTEGER == sqlite3_value_type(argv[0]) ) {
     iVal = sqlite3_value_int64(argv[0]);
     if (iVal < 0) {
-      sqlite3_result_error(context, "argument of mask60 is negative", -1);
+      sqlite3_result_error(context, "argumento é negativo", -1);
     } else {
-      buffer = sqlite3_malloc(N_DEZENAS+1);
+      buffer = (char *) sqlite3_malloc( N_DEZENAS+1 );
       if (!buffer) {
         sqlite3_result_error_nomem(context);
       } else {
-        t = buffer;
-        for (i=0; i < N_DEZENAS; i++, iVal >>= 1) *t++ = (iVal & 1) + '0';
-        *t = '\0';
+        for (i=0; i < N_DEZENAS; i++, iVal >>= 1) buffer[i] = (iVal & 1) | '0';
+        buffer[N_DEZENAS] = '\0';
         sqlite3_result_text(context, buffer, -1, SQLITE_TRANSIENT);
         sqlite3_free(buffer);
       }
     }
   } else {
-    sqlite3_result_error(context, "invalid type", -1);
+    sqlite3_result_error(context, "tipo do argumento é invalido", -1);
   }
 }
 
-/**
- * Calcula o quadrante da dezena da mega-sena.
+/*
+ * Retorna o quadrante do número da Mega-Sena conforme apresentado no boleto.
 */
 static void quadranteFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
 {
   int d, q;
+
   assert( 1 == argc );
+
   if ( SQLITE_INTEGER == sqlite3_value_type(argv[0]) ) {
     d = sqlite3_value_int(argv[0]);
-    if (d < 0 || d > N_DEZENAS) {
-      sqlite3_result_error(context, "argument isn't in [1;60]", -1);
+    if (d < 1 || d > N_DEZENAS) {
+      sqlite3_result_error(context, "argumento é menor que 1 ou maior que 60", -1);
       return;
     }
     q = ((d-1) / 20 + 1) * 10 + (((d-1) % 10) / 2 + 1);
     sqlite3_result_int(context, q);
   } else {
-    sqlite3_result_error(context, "argument isn't an integer", -1);
+    sqlite3_result_error(context, "argumento não é do tipo inteiro", -1);
     return;
   }
 }
@@ -161,17 +163,17 @@ static void quadranteFunc(sqlite3_context *context, int argc, sqlite3_value **ar
 */
 static void bitstatusFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
 {
-  i64 iVal = 0;
-  int bitNumber = 0;
-  int rZ = 0;
+  i64 iVal;
+  int bitNumber;
+
   assert( 2 == argc );
+
   if ( SQLITE_INTEGER == sqlite3_value_type(argv[0]) ) {
     iVal = sqlite3_value_int64(argv[0]);
     if ( SQLITE_INTEGER == sqlite3_value_type(argv[1]) ) {
       bitNumber = sqlite3_value_int(argv[1]);
       if (bitNumber >= 0 && bitNumber < I64_NBITS) {
-        rZ = (iVal >> bitNumber) & 1;
-        sqlite3_result_int(context, rZ);
+        sqlite3_result_int(context, (iVal >> bitNumber) & 1);
       } else {
         sqlite3_result_error(context, "error: bit number isn't in [0;63]", -1);
       }
@@ -183,11 +185,21 @@ static void bitstatusFunc(sqlite3_context *context, int argc, sqlite3_value **ar
   }
 }
 
-/* estrutura de contexto Bitwise */
-typedef struct BitCtx BitCtx;
-struct BitCtx {
+typedef struct BitCtx {
   i64 rB;
-};
+}
+BitCtx;
+
+/*
+ * returns the resulting value of bitwise OR on group itens
+*/
+static void group_bitorFinalize(sqlite3_context *context)
+{
+  BitCtx *p;
+
+  p = sqlite3_aggregate_context(context, sizeof(BitCtx));
+  sqlite3_result_int64(context, p->rB);
+}
 
 /*
  * Acumula o resultado do BITWISE OR entre o valor da estrutura de contexto
@@ -197,53 +209,47 @@ struct BitCtx {
 static void group_bitorStep(sqlite3_context *context, int argc, sqlite3_value **argv)
 {
   BitCtx *p;
-  i64 iVal = 0;
+  i64 iVal;
+
   assert( 1 == argc );
+
   if ( SQLITE_INTEGER == sqlite3_value_numeric_type(argv[0]) ) {
     iVal = sqlite3_value_int64(argv[0]);
-    p = sqlite3_aggregate_context(context, sizeof(*p));
+    p = sqlite3_aggregate_context(context, sizeof(BitCtx));
     p->rB |= iVal;
   } else {
     sqlite3_result_error(context, "error: BITOR argument isn't an integer", -1);
   }
 }
 
-/**
- * BITWISE OR dos índices das dezenas da mega-sena.
+/*
+ * BITWISE OR dos índices dos números da Mega-Sena.
 */
 static void group_ndxbitorStep(sqlite3_context *context, int argc, sqlite3_value **argv)
 {
-  const i64 ONE = 1;
   BitCtx *p;
+  int iVal;
+
   assert( 1 == argc );
+
   if ( SQLITE_INTEGER == sqlite3_value_numeric_type(argv[0]) ) {
-    int iVal = sqlite3_value_int(argv[0]);
+    iVal = sqlite3_value_int(argv[0]);
     if (iVal > 0 && iVal <= N_DEZENAS) {
-      p = sqlite3_aggregate_context(context, sizeof(*p));
-      p->rB |= ONE << (iVal-1);
+      p = sqlite3_aggregate_context(context, sizeof(BitCtx));
+      p->rB |= ((i64) 1) << (iVal-1);
     } else {
-      sqlite3_result_error(context, "error: index isn't in [1;60]", -1);
+      sqlite3_result_error(context, "argumento é menor que 1 ou maior que 60", -1);
     }
   } else {
-    sqlite3_result_error(context, "error: NDXBITOR argument isn't an integer", -1);
+    sqlite3_result_error(context, "argumento nao é do tipo inteiro", -1);
   }
 }
 
-/*
- * returns the resulting value of bitwise OR on group itens
-*/
-static void group_bitorFinalize(sqlite3_context *context)
-{
-  BitCtx *p;
-  p = sqlite3_aggregate_context(context, 0);
-  sqlite3_result_int64(context, p->rB);
-}
-
-/* LMH from sqlite3 3.3.13 */
-/*
-** This table maps from the first byte of a UTF-8 character to the number
-** of trailing bytes expected. A value '4' indicates that the table key
-** is not a legal first byte for a UTF-8 character.
+/* LMH from sqlite3 3.3.13
+ *
+ * This table maps from the first byte of a UTF-8 character to the number
+ * of trailing bytes expected. A value '4' indicates that the table key
+ * is not a legal first byte for a UTF-8 character.
 */
 static const u8 xtra_utf8_bytes[256]  = {
   /* 0xxxxxxx */
@@ -274,23 +280,23 @@ static const u8 xtra_utf8_bytes[256]  = {
 };
 
 /*
-** This table maps from the number of trailing bytes in a UTF-8 character
-** to an integer constant that is effectively calculated for each character
-** read by a naive implementation of a UTF-8 character reader. The code
-** in the READ_UTF8 macro explains things best.
+ * This table maps from the number of trailing bytes in a UTF-8 character
+ * to an integer constant that is effectively calculated for each character
+ * read by a naive implementation of a UTF-8 character reader. The code
+ * in the READ_UTF8 macro explains things best.
 */
 static const int xtra_utf8_bits[] =  {
   0,
-  12416,          /* (0xC0 << 6) + (0x80) */
+  12416,          /* (0xC0 << 6)  + (0x80) */
   925824,         /* (0xE0 << 12) + (0x80 << 6) + (0x80) */
   63447168        /* (0xF0 << 18) + (0x80 << 12) + (0x80 << 6) + 0x80 */
 };
 
 /*
-** If a UTF-8 character contains N bytes extra bytes (N bytes follow
-** the initial byte so that the total character length is N+1) then
-** masking the character with utf8_mask[N] must produce a non-zero
-** result.  Otherwise, we have an (illegal) overlong encoding.
+ * If a UTF-8 character contains N bytes extra bytes (N bytes follow
+ * the initial byte so that the total character length is N+1) then
+ * masking the character with utf8_mask[N] must produce a non-zero
+ * result.  Otherwise, we have an (illegal) overlong encoding.
 */
 static const int utf_mask[] = {
   0x00000000,
@@ -321,16 +327,15 @@ static int sqlite3ReadUtf8(const unsigned char *z)
 }
 
 /*
-** X is a pointer to the first byte of a UTF-8 character.  Increment
-** X so that it points to the next character.  This only works right
-** if X points to a well-formed UTF-8 string.
+ * X is a pointer to the first byte of a UTF-8 character.  Increment
+ * X so that it points to the next character.  This only works right
+ * if X points to a well-formed UTF-8 string.
 */
 #define sqliteNextChar(X)  while( (0xC0 & *(++X)) == 0x80 ){}
 #define sqliteCharVal(X)   sqlite3ReadUtf8(X)
 
 /*
-** given a string returns the same string but with the characters in reverse
-** order
+ * Returns the source string with the characters in reverse order.
 */
 static void reverseFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
 {
@@ -374,10 +379,12 @@ static void reverseFunc(sqlite3_context *context, int argc, sqlite3_value **argv
 */
 static void zeropadFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
 {
-  i64 iVal = 0;
-  int iSize = 0;
+  i64 iVal;
+  int iSize, j;
+  char *z, *format;
+
   assert( argc == 2 );
-  int j;
+
   for (j=0; j < argc; j++) {
     switch( sqlite3_value_type(argv[j]) ) {
       case SQLITE_INTEGER: {
@@ -401,56 +408,107 @@ static void zeropadFunc(sqlite3_context *context, int argc, sqlite3_value **argv
     sqlite3_result_error(context, "domain error", -1);
     return;
   }
-  char *mask = sqlite3_mprintf("%%0%dd", iSize);
-  char *z = sqlite3_mprintf(mask, iVal);
-  sqlite3_free(mask);
-  sqlite3_result_text(context, (char*)z, -1, SQLITE_TRANSIENT);
+  format = sqlite3_mprintf("%%0%dd", iSize);
+  z = sqlite3_mprintf(format, iVal);
+  sqlite3_free(format);
+  sqlite3_result_text(context, z, -1, SQLITE_TRANSIENT);
   sqlite3_free(z);
 }
 
+#include <stdlib.h>
+
 /*
- * Copia até 'len' caractéres da string utf8 apontada por 'src' a partir
- * do índice 'off' inclusive, para a posição de memória apontada por 'buf'
- * dimensionada para conter a substring mais o byte terminador null.
+ * Validação de data conforme ISO 8601 usando data no formato YYYY-MM-DD
+ * e também checa os valores dos componentes da data.
 */
-static char *strcopy(char *buf, const char *src, int off, int len)
+static int chkdate(const char *date)
 {
-  const char *z;
-  int n;
-  // posiciona o ponteiro descartando a substring offset
-  for (; off > 0 && sqliteCharVal((unsigned char *) src) != 0; --off)
-    sqliteNextChar(src);
-  // contagem dos bytes contíguos da substring alvo
-  for (n=0; len > 0 && sqliteCharVal((unsigned char *) src) != 0; --len)
+  char *t = (char *) date;
+  int j;
+
+  // identificação do formato 'YYYY-MM-DD'
+
+  for (j=0; *t && j < 10; j++, t++)
   {
-    z = src;
-    sqliteNextChar(src);
-    n += src - z;
+    if (j != 4 && j != 7) {
+      if (*t < '0' || *t > '9') return 0;
+    } else {
+      if (*t != '-') return 0;
+    }
   }
-  // copia os bytes da substring alvo para o buffer e o finaliza com NUL
-  memcpy(buf, src-n, n);
-  *(buf+n) = '\0';
-  return buf;
+  if (*t || j != 10) return 0;
+
+  // extrai e valida componentes da data
+
+  int days_in_month[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+  int year, month, day;
+
+  t = (char *) sqlite3_malloc(4+1);
+  memcpy(t, date+5, 2);
+  *(t+2) = '\0';
+  month = atoi(t);
+  j = (month > 0 && month <= 12);
+  if (j) {
+    if (month == 2)
+    {
+      memcpy(t, date, 4);
+      *(t+4) = '\0';
+      year = atoi(t);
+      days_in_month[1] = (year%4 == 0 && year%100 != 0) || year%400 == 0 ? 29 : 28;
+    }
+    memcpy(t, date+8, 2);
+    *(t+2) = '\0';
+    day = atoi(t);
+    j = (day > 0 && day <= days_in_month[month-1]);
+  }
+  sqlite3_free(t);
+
+  return j;
 }
 
 /*
- * Extract field from a datestring in first parameter with index order in
- * second parameter where 0 is for year, 1 is for month and 2 is for day.
+ * Validate a date string against ISO 8601 using date format YYYY-MM-DD
+ * and also check-up the date fields values.
+*/
+static void chkdateFunc(sqlite3_context *ctx, int argc, sqlite3_value **argv)
+{
+  const char *z;
+
+  assert(1 == argc);
+
+  if ( SQLITE_TEXT != sqlite3_value_type(argv[0]) ) {
+    sqlite3_result_error(ctx, "argument isn't a string", -1);
+    return;
+  }
+  z = (const char *) sqlite3_value_text(argv[0]);
+
+  sqlite3_result_int(ctx, chkdate(z));
+}
+
+/*
+ * Extract field from a datestring in first argument with index order in
+ * second argument where 0 is for year, 1 is for month and 2 is for day.
 */
 static void datefieldFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
 {
-  const int LEN[3] = { 4, 2, 2 }; /* fields lengths */
-  const int NDX[3] = { 0, 5, 8 }; /* fields offset indexes */
-  const char *z;
-  char *rz;
+  const int NDX[] = { 0, 5, 8 }; /* fields offset indexes */
+  const int LEN[] = { 4, 2, 2 }; /* fields lengths */
+  char *z;
   int f;
+
   assert( 2 == argc );
+
   /* check if first argument type is text */
   if ( SQLITE_TEXT != sqlite3_value_type(argv[0]) ) {
     sqlite3_result_error(context, "1st argument isn't a string", -1);
     return;
   }
   z = (char *) sqlite3_value_text(argv[0]);
+  /**/
+  if (!chkdate(z)) {
+    sqlite3_result_error(context, "wrong date string", -1);
+    return;
+  }
   /* check if second argument type is integer */
   if ( SQLITE_INTEGER != sqlite3_value_type(argv[1]) ) {
     sqlite3_result_error(context, "2nd argument isn't an integer", -1);
@@ -462,64 +520,78 @@ static void datefieldFunc(sqlite3_context *context, int argc, sqlite3_value **ar
     sqlite3_result_error(context, "2nd argument domain error", -1);
     return;
   }
-  /* try to allocate memory for result string */
-  rz = sqlite3_malloc(LEN[f]+1);
-  if (!rz) {
-    sqlite3_result_error_nomem(context);
-    return;
-  }
-  strcopy(rz, z, NDX[f], LEN[f]);
-  /* publish the result string in the context */
-  sqlite3_result_text(context, rz, -1, SQLITE_TRANSIENT);
-  /* release the wasted memory */
-  sqlite3_free(rz);
+
+  *(z + NDX[f] + LEN[f]) = '\0';
+
+  sqlite3_result_text(context, z+NDX[f], -1, SQLITE_TRANSIENT);
 }
 
-/**
- * Retorna a data 'yyyy-mm-dd' no formato 'dd-mm-yyyy'.
+#define WORD(ptr) *((unsigned short int *) (ptr))
+
+#define SWAP(a, b) WORD(a) ^= WORD(b), WORD(b) ^= WORD(a), WORD(a) ^= WORD(b)
+
+/*
+ * Retorna a data 'year-mM-dD' no formato 'dD-mM-year'.
 */
-static void datalocalFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
+static void datalocalFunc(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
-  const char *z;
-  char *rz;
-  z = (char *) sqlite3_value_text(argv[0]);
-  rz = sqlite3_malloc(strlen(z)+1);
-  strcopy(rz, z, 8, 2);
-  strcopy(&rz[strlen(rz)], z, 4, 4);
-  strcopy(&rz[strlen(rz)], z, 0, 4);
-  sqlite3_result_text(context, rz, -1, SQLITE_TRANSIENT);
-  sqlite3_free(rz);
+  char *date;
+
+  assert( 1 == argc );
+
+  date = (char *) sqlite3_value_text(argv[0]);   // year-mM-dD
+
+  if (!chkdate(date)) {
+    sqlite3_result_error(ctx, "data invalida", -1);
+    return ;
+  }
+
+  /*
+    memmove(&int, date, 4);      // salva 'year'                   ????-mM-dD
+    memmove(date, date+8, 2);    // move 'dD' p/início             dd??-mM-??
+    memmove(date+2, date+4, 4);  // move '-mM-' 2 bytes a frente   dD-mM-????
+    memmove(date+6, &int, 4);    // restaura 'year'                dD-mM-year
+  */
+
+  // código alternativo independente de funções
+
+  SWAP(date,   date+8);  // dDar-mM-ye
+  SWAP(date+4, date+2);  // dD-marM-ye
+  SWAP(date+6, date+4);  // dD-mM-arye
+  SWAP(date+8, date+6);  // dD-mM-year
+
+  sqlite3_result_text(ctx, date, -1, SQLITE_TRANSIENT);
 }
+
+/*
+ * The ROWNUM code was borrowed from: http://sqlite.1065341.n5.nabble.com/sequential-row-numbers-from-query-td47370.html
+*/
 
 typedef struct ROWNUM_t ROWNUM_t;
 struct ROWNUM_t {
   int nNumber;
 };
 
-static void rownum_free(void *p) {
+static void rownum_free(void *p)
+{
   sqlite3_free(p);
 }
 
 /*
-** Retorna o número da linha na tabela, necessariamente usando como argumento
-** qualquer valor constante.
-**
-** Borrowed from http://sqlite.1065341.n5.nabble.com/sequential-row-numbers-from-query-td47370.html
+ * Retorna o número da linha na tabela, necessariamente usando como argumento
+ * qualquer valor constante.
 */
-static void rownumFunc(
-  sqlite3_context *context,
-  int argc,
-  sqlite3_value **argv
-) {
-  ROWNUM_t* pAux;
+static void rownumFunc(sqlite3_context *context, int argc, sqlite3_value **argv
+)
+{
+  ROWNUM_t *pAux;
 
   pAux = sqlite3_get_auxdata(context, 0);
-
   if (!pAux) {
-    pAux = (ROWNUM_t*)sqlite3_malloc(sizeof(ROWNUM_t));
+    pAux = (ROWNUM_t *) sqlite3_malloc( sizeof(ROWNUM_t) );
     if (pAux) {
       pAux->nNumber = 0;
-      sqlite3_set_auxdata(context, 0, (void*)pAux, rownum_free);
+      sqlite3_set_auxdata(context, 0, (void *) pAux, rownum_free);
     } else {
       sqlite3_result_error(context, "sqlite3_malloc failed", -1);
       return;
@@ -666,6 +738,12 @@ static void regexp_match(sqlite3_context *ctx, int argc, sqlite3_value **argv)
       return ;
     }
     c->e = pcre_study(c->p, 0, &err);
+    if (!c->e && err) {
+      err2 = sqlite3_mprintf("%s: %s", re, err);
+      sqlite3_result_error(ctx, err2, -1);
+      sqlite3_free(err2);
+      return ;
+    }
     sqlite3_set_auxdata(ctx, 0, c, release_cache_entry);
   }
 
@@ -736,6 +814,12 @@ static void regexp_match_count(sqlite3_context *ctx, int argc, sqlite3_value **a
       return ;
     }
     c->e = pcre_study(c->p, 0, &err);
+    if (!c->e && err) {
+      err2 = sqlite3_mprintf("%s: %s", re, err);
+      sqlite3_result_error(ctx, err2, -1);
+      sqlite3_free(err2);
+      return ;
+    }
     sqlite3_set_auxdata(ctx, 0, c, release_cache_entry);
   }
 
@@ -808,6 +892,12 @@ static void regexp_match_position(sqlite3_context *ctx, int argc, sqlite3_value 
       return ;
     }
     c->e = pcre_study(c->p, 0, &err);
+    if (!c->e && err) {
+      err2 = sqlite3_mprintf("%s: %s", re, err);
+      sqlite3_result_error(ctx, err2, -1);
+      sqlite3_free(err2);
+      return ;
+    }
     sqlite3_set_auxdata(ctx, 0, c, release_cache_entry);
   }
 
@@ -830,10 +920,10 @@ static void regexp_match_position(sqlite3_context *ctx, int argc, sqlite3_value 
   }
 }
 
-#else
+#else /* GNU Regex */
 
 /*
- * Suporte a GNU Regular Expressions (aka PCRE) conforme documentado em:
+ * Suporte a GNU Regular Expressions (aka GNU Regex) conforme documentado em:
  * https://www.gnu.org/software/libc/manual/html_node/Regular-Expressions.html
 */
 
@@ -927,7 +1017,7 @@ static void iregexp(sqlite3_context *context, int argc, sqlite3_value **argv)
   sqlite3_result_int(context, r == 0);
 }
 
-#define MAX_MATCHES 1 // número máximo de identificações numa string qualquer
+#define MAX_MATCHES 1 /* número máximo de identificações numa string qualquer */
 
 /*
  * Retorna a primeira substring da string pesquisada que corresponder à
@@ -1069,10 +1159,9 @@ static void regexp_match_position(sqlite3_context *context, int argc, sqlite3_va
     sqlite3_set_auxdata(context, 0, exp, sqlite3_free);
   }
 
-  for (v=0, r=-1;
-       *(z+v) != '\0'
-       && group > 0
-       && regexec(exp, z+v, MAX_MATCHES, matches, 0) == 0; )
+  v = 0; r = -1;
+  while ( *(z+v) != '\0' && group > 0
+         && regexec(exp, z+v, MAX_MATCHES, matches, 0) == 0 )
   {
     r = v + matches[0].rm_so;
     v += matches[0].rm_eo;
@@ -1081,11 +1170,12 @@ static void regexp_match_position(sqlite3_context *context, int argc, sqlite3_va
   sqlite3_result_int(context, group == 0 ? r : -1);
 }
 
-#endif
+#endif /* GNU Regex */
+
 /*
-** This function registered all of the above C functions as SQL
-** functions.  This should be the only routine in this file with
-** external linkage.
+ * This function registered all of the above C functions as SQL
+ * functions.  This should be the only routine in this file with
+ * external linkage.
 */
 int RegisterExtensionFunctions(sqlite3 *db)
 {
@@ -1112,6 +1202,7 @@ int RegisterExtensionFunctions(sqlite3 *db)
 
     { "datefield",          2, 0, SQLITE_UTF8,    0, datefieldFunc },
     { "datalocal",          1, 0, SQLITE_UTF8,    0, datalocalFunc },
+    { "chkdate",            1, 0, SQLITE_UTF8,    0, chkdateFunc },
 
     { "rownum",             1, 0, SQLITE_UTF8,    0, rownumFunc },
 
