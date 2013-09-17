@@ -440,30 +440,19 @@ static int chkdate(const char *date)
 
   // extrai e valida componentes da data
 
-  int days_in_month[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
-  int year, month, day;
+  char daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+  short int year;
+  char month, day;
 
-  t = (char *) sqlite3_malloc(4+1);
-  memcpy(t, date+5, 2);
-  *(t+2) = '\0';
-  month = atoi(t);
-  j = (month > 0 && month <= 12);
-  if (j) {
-    if (month == 2)
-    {
-      memcpy(t, date, 4);
-      *(t+4) = '\0';
-      year = atoi(t);
-      days_in_month[1] = (year%4 == 0 && year%100 != 0) || year%400 == 0 ? 29 : 28;
-    }
-    memcpy(t, date+8, 2);
-    *(t+2) = '\0';
-    day = atoi(t);
-    j = (day > 0 && day <= days_in_month[month-1]);
+  month = atoi(date+5);
+  if (month < 1 || month > 12) return 0;
+  if (month == 2)
+  {
+    year = atoi(date);
+    daysInMonth[1] = (year%4 == 0 && year%100 != 0) || year%400 == 0 ? 29 : 28;
   }
-  sqlite3_free(t);
-
-  return j;
+  day = atoi(date+8);
+  return (day > 0 && day <= daysInMonth[month-1]);
 }
 
 /*
