@@ -7,10 +7,12 @@
  *
  * Bitwise aggregation: group_bitor, group_ndxbitor
  *
+ * Calendar: datalocal, datefield, chkdate, isodate, chkdata
+ *
  * Regular Expressions: regexp, iregexp (only in PCRE), regexp_match,
  *                      regexp_match_count, regexp_match_position
  *
- * Miscellaneous: mask60, quadrante, datalocal, datefield, chkdate, rownum
+ * Miscellaneous: mask60, quadrante, rownum
  *
  * Compile: gcc more-functions.c -fPIC -shared -lm -lpcre -o more-functions.so
  *
@@ -417,6 +419,18 @@ static void zeropadFunc(sqlite3_context *context, int argc, sqlite3_value **argv
 
 #include <stdlib.h>
 
+static int chkdatefields(int year, int month, int day)
+{
+  char daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+  if (month < 1 || month > 12) return 0;
+  if (month == 2)
+  {
+    daysInMonth[1] = (year%4 == 0 && year%100 != 0) || year%400 == 0 ? 29 : 28;
+  }
+  return (day > 0 && day <= daysInMonth[month-1]);
+}
+
 /*
  * Validação de data conforme ISO 8601 usando data no formato YYYY-MM-DD
  * e também checa os valores dos componentes da data.
@@ -440,19 +454,33 @@ static int chkdate(const char *date)
 
   // extrai e valida componentes da data
 
-  char daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
-  short int year;
-  char month, day;
+  return chkdatefields(atoi(date), atoi(date+5), atoi(date+8));
+}
 
-  month = atoi(date+5);
-  if (month < 1 || month > 12) return 0;
-  if (month == 2)
+/*
+ * Validação de data no formato DD-MM-YYYY e também checa os valores dos
+ * componentes da data.
+*/
+static int chkdata(const char *date)
+{
+  char *t = (char *) date;
+  int j;
+
+  // identificação do formato 'DD-MM-YYYY'
+
+  for (j=0; *t && j < 10; j++, t++)
   {
-    year = atoi(date);
-    daysInMonth[1] = (year%4 == 0 && year%100 != 0) || year%400 == 0 ? 29 : 28;
+    if (j != 2 && j != 5) {
+      if (*t < '0' || *t > '9') return 0;
+    } else {
+      if (*t != '-') return 0;
+    }
   }
-  day = atoi(date+8);
-  return (day > 0 && day <= daysInMonth[month-1]);
+  if (*t || j != 10) return 0;
+
+  // extrai e valida componentes da data
+
+  return chkdatefields(atoi(date+6), atoi(date+3), atoi(date));
 }
 
 /*
@@ -472,6 +500,25 @@ static void chkdateFunc(sqlite3_context *ctx, int argc, sqlite3_value **argv)
   z = (const char *) sqlite3_value_text(argv[0]);
 
   sqlite3_result_int(ctx, chkdate(z));
+}
+
+/*
+ * Validate a date using date format DD-MM-YYYY and also check-up the date
+ * fields values.
+*/
+static void chkdataFunc(sqlite3_context *ctx, int argc, sqlite3_value **argv)
+{
+  const char *z;
+
+  assert(1 == argc);
+
+  if ( SQLITE_TEXT != sqlite3_value_type(argv[0]) ) {
+    sqlite3_result_error(ctx, "argument isn't a string", -1);
+    return;
+  }
+  z = (const char *) sqlite3_value_text(argv[0]);
+
+  sqlite3_result_int(ctx, chkdata(z));
 }
 
 /*
@@ -531,7 +578,7 @@ static void datalocalFunc(sqlite3_context *ctx, int argc, sqlite3_value **argv)
   date = (char *) sqlite3_value_text(argv[0]);   // year-mM-dD
 
   if (!chkdate(date)) {
-    sqlite3_result_error(ctx, "data invalida", -1);
+    sqlite3_result_error(ctx, "data ISO invalida", -1);
     return ;
   }
 
@@ -548,6 +595,30 @@ static void datalocalFunc(sqlite3_context *ctx, int argc, sqlite3_value **argv)
   SWAP(date+4, date+2);  // dD-marM-ye
   SWAP(date+6, date+4);  // dD-mM-arye
   SWAP(date+8, date+6);  // dD-mM-year
+
+  sqlite3_result_text(ctx, date, -1, SQLITE_TRANSIENT);
+}
+
+/*
+ * Retorna a data 'dD-mM-year' no formato 'year-mM-dD' aka ISO.
+*/
+static void isodateFunc(sqlite3_context *ctx, int argc, sqlite3_value **argv)
+{
+  char *date;
+
+  assert( 1 == argc );
+
+  date = (char *) sqlite3_value_text(argv[0]);   // dD-mM-year
+
+  if (!chkdata(date)) {
+    sqlite3_result_error(ctx, "data local invalida", -1);
+    return ;
+  }
+
+  SWAP(date,   date+8);  // ar-mM-yedD
+  SWAP(date+6, date+4);  // ar-myeM-dD
+  SWAP(date+4, date+2);  // arye-mM-dD
+  SWAP(date+2,   date);  // year-mM-dD
 
   sqlite3_result_text(ctx, date, -1, SQLITE_TRANSIENT);
 }
@@ -1192,6 +1263,8 @@ int RegisterExtensionFunctions(sqlite3 *db)
     { "datefield",          2, 0, SQLITE_UTF8,    0, datefieldFunc },
     { "datalocal",          1, 0, SQLITE_UTF8,    0, datalocalFunc },
     { "chkdate",            1, 0, SQLITE_UTF8,    0, chkdateFunc },
+    { "isodate",            1, 0, SQLITE_UTF8,    0, isodateFunc },
+    { "chkdata",            1, 0, SQLITE_UTF8,    0, chkdataFunc },
 
     { "rownum",             1, 0, SQLITE_UTF8,    0, rownumFunc },
 

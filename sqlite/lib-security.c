@@ -3,9 +3,9 @@
  *
  *    MD5, ENC, DEC, ENC2, DEC2
  *
- * Exception to MD5, all functions are workaround providing naive encryption
- * and naive decryption using symmetric-key which are safe in the sense of
- * system resources usage with very good performance.
+ * Except to MD5, all functions are workaround providing naive encryption
+ * and decryption using symmetric-key which are safe in the sense of system
+ * resources usage with very good performance.
  *
  * Important: There aren't warranties and usage is at your own risk.
  *
@@ -19,7 +19,7 @@
  *
  * Usage in init file or interative sessions:
  *
- *    .load "path_to_this_extension_lib/libsecurity.so"
+ *    .load "path_to_this_extension_lib/lib-security.so"
  *
  * or as SQLite query:
  *
@@ -39,8 +39,9 @@ SQLITE_EXTENSION_INIT1
 */
 static void md5(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
-  unsigned char *z, *rz;
   unsigned char digest[MD5_DIGEST_LENGTH];
+  unsigned char *z;
+  char *rz;
   int i;
 
   assert(1 == argc);
@@ -51,16 +52,20 @@ static void md5(sqlite3_context *ctx, int argc, sqlite3_value **argv)
   }
   z = (unsigned char *) sqlite3_value_text(argv[0]);
 
-  rz = sqlite3_malloc(32 + 1);
+  rz = sqlite3_malloc((MD5_DIGEST_LENGTH << 1) + 1);
   if (!rz) {
     sqlite3_result_error_nomem(ctx);
     return ;
   }
-  MD5(z, strlen((char *) z), (unsigned char*) &digest);
-  for (i = 0; i < 16; i++) {
-    sqlite3_snprintf(3, &(((char *) rz)[i*2]), "%02x", (unsigned int) digest[i]);
+
+  MD5(z, strlen((char *) z), (unsigned char *) &digest);
+
+  for (i = 0; i < MD5_DIGEST_LENGTH; i++)
+  {
+    sqlite3_snprintf(3, rz + (i << 1), "%02x", (unsigned int) digest[i]);
   }
-  sqlite3_result_text(ctx, (char *) rz, -1, SQLITE_TRANSIENT);
+
+  sqlite3_result_text(ctx, rz, -1, SQLITE_TRANSIENT);
   sqlite3_free(rz);
 }
 
@@ -91,7 +96,7 @@ static inline char encrypt_char(char c, char k)
 */
 static inline char decrypt_char(char c, char k)
 {
-  return --c ^ k;     // (c - (char) 0x01) ^ k;
+  return --c ^ k;     // ~(-c) ^ k;   // (c - (char) 0x01) ^ k;
 }
 
 /*
@@ -117,7 +122,7 @@ static char *crypt(const char *src, const char *key, char *buf, char (*f)(char, 
 }
 
 /*
- * Método alternativo ao anterior com pouco maior complexidade.
+ * Método alternativo ao anterior com pouca complexidade adicional.
 */
 static char *crypt2(const char *src, const char *key, char *buf, char (*f)(char, char))
 {
@@ -147,7 +152,7 @@ static char *crypt2(const char *src, const char *key, char *buf, char (*f)(char,
 }
 
 /*
- * Retorna texto criptografado usando chave simétrica, tal que a chave
+ * Retorna texto cifrado usando chave simétrica, tal que a chave
  * deve ser o primeiro argumento e o texto o segundo.
  *
  * ENC é a função inversa de DEC:
@@ -166,6 +171,10 @@ static void enc(sqlite3_context *ctx, int argc, sqlite3_value **argv)
     return ;
   }
   key = (char *) sqlite3_value_text(argv[0]);
+  if (strlen(key) == 0) {
+    sqlite3_result_error(ctx, "key value is an zero length string", -1);
+    return ;
+  }
 
   if (SQLITE_NULL == sqlite3_value_type(argv[1])) {
     sqlite3_result_null(ctx);
@@ -185,8 +194,8 @@ static void enc(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 }
 
 /*
- * Retorna texto descriptografado usando chave simétrica, tal que a chave
- * deve ser o primeiro argumento e o texto o segundo.
+ * Retorna texto usando chave simétrica, tal que a chave
+ * deve ser o primeiro argumento e o texto cifrado o segundo.
  *
  * DEC é a função inversa de ENC:
  *
@@ -204,6 +213,10 @@ static void dec(sqlite3_context *ctx, int argc, sqlite3_value **argv)
     return ;
   }
   key = (char *) sqlite3_value_text(argv[0]);
+  if (strlen(key) == 0) {
+    sqlite3_result_error(ctx, "key value is an zero length string", -1);
+    return ;
+  }
 
   if (SQLITE_NULL == sqlite3_value_type(argv[1])) {
     sqlite3_result_null(ctx);
@@ -241,6 +254,10 @@ static void enc2(sqlite3_context *ctx, int argc, sqlite3_value **argv)
     return ;
   }
   key = (char *) sqlite3_value_text(argv[0]);
+  if (strlen(key) == 0) {
+    sqlite3_result_error(ctx, "key value is an zero length string", -1);
+    return ;
+  }
 
   if (SQLITE_NULL == sqlite3_value_type(argv[1])) {
     sqlite3_result_null(ctx);
@@ -278,6 +295,10 @@ static void dec2(sqlite3_context *ctx, int argc, sqlite3_value **argv)
     return ;
   }
   key = (char *) sqlite3_value_text(argv[0]);
+  if (strlen(key) == 0) {
+    sqlite3_result_error(ctx, "key value is an zero length string", -1);
+    return ;
+  }
 
   if (SQLITE_NULL == sqlite3_value_type(argv[1])) {
     sqlite3_result_null(ctx);
