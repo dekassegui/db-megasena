@@ -1,7 +1,7 @@
 /*
  * Functions dealing with security in SQLite:
  *
- *    MD5, ENC, DEC, ENC2, DEC2
+ *    MD5, ENC, DEC
  *
  * Except to MD5, all functions are workaround providing naive encryption
  * and decryption using symmetric-key which are safe in the sense of system
@@ -69,263 +69,328 @@ static void md5(sqlite3_context *ctx, int argc, sqlite3_value **argv)
   sqlite3_free(rz);
 }
 
-/*
- * Retorna o incremento de 1 da disjunção exclusiva entre os argumentos:
- *
- *                        (c xor k) + 1
-*/
-static inline char encrypt_char(char c, char k)
+static unsigned char lrotate(unsigned char val, int n)
 {
-  return -(~(c ^ k)); // (c ^ k) + (char) 0x01;
-}
+  int i, t = val;
 
-/*
- * Retorna a disjunção exclusiva do primeiro argumento decrementado de 1
- * e o segundo argumento:
- *
- *                        (c - 1) xor k
- *
- * Funciona como função inversa de encrypt_char se o primeiro argumento é
- * o resultado de seu uso e o segundo argumento é o mesmo para ambos:
- *
- *                decrypt_char(encrypt_char(c, k), k) == c
- *
- * equivalente a:
- *
- *                  ((((c xor k) + 1) - 1) xor k) == c
-*/
-static inline char decrypt_char(char c, char k)
-{
-  return --c ^ k;     // ~(-c) ^ k;   // (c - (char) 0x01) ^ k;
-}
-
-/*
- * Método ingênuo de criptografia via chave simétrica, acionado internamente
- * pelas funções de interface ao usuário.
-*/
-static char *crypt(const char *src, const char *key, char *buf, char (*f)(char, char))
-{
-  char *s, *z;
-  int i, k;
-
-  // read source and fill buffer in forward direction
-  s = (char *) src;
-  z = buf;
-  k = strlen(key);
-  i = 0;
-  while (*s) {
-    *z++ = (*f)(*s++, key[i++ % k]);
+  for (i=0; i < n; i++)
+  {
+    t <<= 1;
+    if (t & 256) t |= 1;
   }
-  *z = *s;  // borrow the NUL char
+
+  return t;
+}
+
+static unsigned char rrotate(unsigned char val, int n)
+{
+  int i, t = val;
+
+  t <<= 8;
+  for (i=0; i < n; i++)
+  {
+    t >>= 1;
+    if (t & 128) t |= 32768;
+  }
+
+  return t >> 8;
+}
+
+#define ROT(a, b)  (char) rrotate((unsigned char) (a), ((int) (b)) % 8)
+
+#define LROT(a, b) (char) lrotate((unsigned char) (a), ((int) (b)) % 8)
+
+typedef struct krypt_s
+{
+  char *id;
+  char (*cifrar_char)(char c, char k);
+  char (*decifrar_char)(char c, char k);
+}
+krypt_t;
+
+static char naive_cifrar_char(char c, char k)
+{
+  return c ^ k;
+}
+
+static char usual_cifrar_char(char c, char k)
+{
+  return ROT(c ^ k, k);
+}
+
+static char usual_decifrar_char(char c, char k)
+{
+  return LROT(c, k) ^ k;
+}
+
+static char single_cifrar_char(char c, char k)
+{
+  return ROT(c, k) ^ k;
+}
+
+static char single_decifrar_char(char c, char k)
+{
+  return LROT(c ^ k, k);
+}
+
+static char alternate_cifrar_char(char c, char k)
+{
+  return (k % 2) ? LROT(c ^ k, k) : ROT(c ^ k, k);
+}
+
+static char alternate_decifrar_char(char c, char k)
+{
+  return (k % 2) ? ROT(c, k) ^ k : LROT(c, k) ^ k;
+}
+
+#define DEFAULT_KRYPT_MODE "naive"
+
+/*
+ * Inicializa o engine de criptografia de caractéres conforme nome do método.
+*/
+static void init_krypt(krypt_t *krypt, const char *id)
+{
+  if (strcmp(id, "single") == 0)
+  {
+    krypt->id = "single";
+    krypt->cifrar_char = single_cifrar_char;
+    krypt->decifrar_char = single_decifrar_char;
+  }
+  else if (strcmp(id, "usual") == 0)
+  {
+    krypt->id = "usual";
+    krypt->cifrar_char = usual_cifrar_char;
+    krypt->decifrar_char = usual_decifrar_char;
+  }
+  else if (strcmp(id, "alternate") == 0)
+  {
+    krypt->id = "alternate";
+    krypt->cifrar_char = alternate_cifrar_char;
+    krypt->decifrar_char = alternate_decifrar_char;
+  }
+  else
+  {
+    krypt->id = "naive";
+    krypt->cifrar_char = naive_cifrar_char;
+    krypt->decifrar_char = naive_cifrar_char;
+  }
+}
+
+/*
+ * Valor inteiro resultante de 0xC0 | (0x80 << 8) cujos bytes na ordem inversa
+ * coincidem com a codificação do caractere NULL (U+0000) no "Modified UTF8",
+ * onde strings nunca contém NULL, mas podem conter todos os "code points" do
+ * Unicode, inclusive U+0000, possibilitando que tais strings contendo NULL
+ * sejam processadas por funções tradicionais de string terminada com NULL.
+*/
+#define INSIDE_NULL -32576
+
+/*
+ * Retorna texto cifrado via método ingenuo de criptografia por chave simétrica.
+ *
+ * src: string objeto da cifragem, terminada com NULL.
+ * key: string contendo a chave criptográfica, terminada com NULL.
+ * buf: string resultante, terminada com NULL (0x00) e os NULL gerados
+ *      na cifragem, substituídos pela sequência de bytes 0xC0 e 0x80.
+ * krypt: engine de criptografia de caractéres.
+*/
+static char *cifrar(const char *src, const char *key, char *buf, krypt_t *krypt)
+{
+  char *z;
+  int n, k;
+
+  for (z=buf, k=strlen(key), n=0; src[n]; ++n, ++z)
+  {
+    *z = krypt->cifrar_char(src[n], key[n%k]);
+    if (*z == 0) *((short int *) z++) = INSIDE_NULL;
+  }
+  *z = 0;
 
   return buf;
 }
 
 /*
- * Método alternativo ao anterior com pouca complexidade adicional.
+ * Retorna texto decifrado, proveniente do processamento via função "cifrar".
+ *
+ * src: string objeto da decifragem, terminada com NULL.
+ * key: string contendo a chave criptográfica, terminada com NULL.
+ * buf: string resultante, terminada com NULL (0x00).
+ * krypt: engine de criptografia de caractéres.
 */
-static char *crypt2(const char *src, const char *key, char *buf, char (*f)(char, char))
+static char *decifrar(const char *src, const char *key, char *buf, krypt_t *krypt)
 {
-  char *s, *z;
-  int i, k;
+  char c;
+  int n, k, x;
 
-  // build the reversed source string
-  k = strlen(src);
-  s = (char *) sqlite3_malloc(k + 1);
-  s += k;
-  *s = '\0';
-  z = (char *) src;
-  while (*z) {
-    *(--s) = *z++;
+  for (k=strlen(key), n=0; *src; ++n, ++src)
+  {
+    x = *((short int *) src) == INSIDE_NULL;
+    c = *src * (1 - x);
+    src += x;
+    buf[n] = krypt->decifrar_char(c, key[n%k]);
   }
-  // read reversed source and fill buffer in backward direction
-  z = buf + k;
-  *z = '\0';
-  k = strlen(key);
-  i = 0;
-  while (*s) {
-    *(--z) = (*f)(*s++, key[i++ % k]);
-  }
-  sqlite3_free(s - i);
+  buf[n] = 0;
 
   return buf;
 }
 
 /*
- * Retorna texto cifrado usando chave simétrica, tal que a chave
- * deve ser o primeiro argumento e o texto o segundo.
+ * Retorna texto cifrado usando criptografia por chave simétrica.
+ *
+ * O primeiro argumento é o nome do método criptográfico que deve ser;
+ * "alternate", "naive", "single" ou "usual", e se for omitido, então
+ * será usado o método definido em DEFAULT_KRYPT_MODE.
+ * Os argumentos seguintes são a chave criptográfica e o texto, nesta
+ * ordem.
  *
  * ENC é a função inversa de DEC:
  *
- *    select ENC(chave, DEC(chave, texto)) == texto;
+ *    select ENC([método, ]chave, DEC([método, ]chave, texto)) == texto;
 */
 static void enc(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
-  const char *key, *plain;
-  char *cypher;
+  krypt_t *krypt;
+  const char *chave, *texto, *modo;
+  char *cifrado;
+  int j = 0;
 
-  assert(2 == argc);
+  assert(argc == 2 || argc == 3);
 
-  if (SQLITE_NULL == sqlite3_value_type(argv[0])) {
-    sqlite3_result_error(ctx, "can't use NULL as key value", -1);
+  if (3 == argc) {
+    if (SQLITE_NULL == sqlite3_value_type(argv[j])) {
+      sqlite3_result_error(ctx, "nome do modo criptográfico é NULL", -1);
+      return ;
+    }
+    modo = (char *) sqlite3_value_text(argv[j++]);
+    if (strlen(modo) == 0) {
+      sqlite3_result_error(ctx, "nome do modo criptográfico tem comprimento zero", -1);
+      return ;
+    }
+  } else {
+    modo = DEFAULT_KRYPT_MODE;
+  }
+
+  if (SQLITE_NULL == sqlite3_value_type(argv[j])) {
+    sqlite3_result_error(ctx, "chave criptográfica é NULL", -1);
     return ;
   }
-  key = (char *) sqlite3_value_text(argv[0]);
-  if (strlen(key) == 0) {
-    sqlite3_result_error(ctx, "key value is an zero length string", -1);
+  chave = (char *) sqlite3_value_text(argv[j++]);
+  if (strlen(chave) == 0) {
+    sqlite3_result_error(ctx, "chave de comprimento zero", -1);
     return ;
   }
 
-  if (SQLITE_NULL == sqlite3_value_type(argv[1])) {
+  if (SQLITE_NULL == sqlite3_value_type(argv[j])) {
     sqlite3_result_null(ctx);
     return ;
   }
-  plain = (char *) sqlite3_value_text(argv[1]);
+  texto = (char *) sqlite3_value_text(argv[j]);
 
-  cypher = sqlite3_malloc( strlen(plain) + 1 );
-  if (!cypher) {
+  cifrado = sqlite3_malloc( strlen(texto)*2 );
+  if (!cifrado) {
     sqlite3_result_error_nomem(ctx);
     return ;
   }
-  crypt(plain, key, cypher, &encrypt_char);
 
-  sqlite3_result_text(ctx, cypher, -1, SQLITE_TRANSIENT);
-  sqlite3_free(cypher);
+  krypt = sqlite3_get_auxdata(ctx, 0);
+  if (!krypt) {
+    krypt = (krypt_t *) sqlite3_malloc(sizeof(krypt_t));
+    if (!krypt) {
+      sqlite3_result_error(ctx, "memória insuficiente", -1);
+      sqlite3_free(cifrado);
+      return ;
+    }
+    init_krypt(krypt, modo);
+    sqlite3_set_auxdata(ctx, 0, krypt, sqlite3_free);
+  }
+  cifrar(texto, chave, cifrado, krypt);
+
+  sqlite3_result_text(ctx, cifrado, -1, SQLITE_TRANSIENT);
+  sqlite3_free(cifrado);
 }
 
 /*
- * Retorna texto usando chave simétrica, tal que a chave
- * deve ser o primeiro argumento e o texto cifrado o segundo.
+ * Retorna texto decifrado usando criptografia por chave simétrica.
+ *
+ * O primeiro argumento é o nome do método criptográfico que deve ser
+ * "alternate", "naive", "single" ou "usual", e se for omitido, então
+ * será usado o método definido em DEFAULT_KRYPT_MODE.
+ * Os argumentos seguintes são a chave criptográfica e o texto, nesta
+ * ordem.
  *
  * DEC é a função inversa de ENC:
  *
- *    select DEC(chave, ENC(chave, texto)) == texto;
+ *    select DEC([método, ]chave, ENC([método, ]chave, texto)) == texto;
 */
 static void dec(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
-  const char *key, *cypher;
-  char *plain;
+  krypt_t *krypt;
+  const char *chave, *cifrado, *modo;
+  char *texto;
+  int j = 0;
 
-  assert(2 == argc);
+  assert(argc == 2 || argc == 3);
 
-  if (SQLITE_NULL == sqlite3_value_type(argv[0])) {
-    sqlite3_result_error(ctx, "can't use NULL as key value", -1);
+  if (3 == argc) {
+    if (SQLITE_NULL == sqlite3_value_type(argv[j])) {
+      sqlite3_result_error(ctx, "nome do modo criptográfico é NULL", -1);
+      return ;
+    }
+    modo = (char *) sqlite3_value_text(argv[j++]);
+    if (strlen(modo) == 0) {
+      sqlite3_result_error(ctx, "nome do modo criptográfico tem comprimento zero", -1);
+      return ;
+    }
+  } else {
+    modo = DEFAULT_KRYPT_MODE;
+  }
+
+  if (SQLITE_NULL == sqlite3_value_type(argv[j])) {
+    sqlite3_result_error(ctx, "chave criptográfica é NULL", -1);
     return ;
   }
-  key = (char *) sqlite3_value_text(argv[0]);
-  if (strlen(key) == 0) {
-    sqlite3_result_error(ctx, "key value is an zero length string", -1);
+  chave = (char *) sqlite3_value_text(argv[j++]);
+  if (strlen(chave) == 0) {
+    sqlite3_result_error(ctx, "chave de comprimento zero", -1);
     return ;
   }
 
-  if (SQLITE_NULL == sqlite3_value_type(argv[1])) {
+  if (SQLITE_NULL == sqlite3_value_type(argv[j])) {
     sqlite3_result_null(ctx);
     return ;
   }
-  cypher = (char *) sqlite3_value_text(argv[1]);
+  cifrado = (char *) sqlite3_value_text(argv[j]);
 
-  plain = sqlite3_malloc( strlen(cypher) + 1 );
-  if (!plain) {
+  texto = sqlite3_malloc( strlen(cifrado)*2 );
+  if (!texto) {
     sqlite3_result_error_nomem(ctx);
     return ;
   }
-  crypt(cypher, key, plain, &decrypt_char);
 
-  sqlite3_result_text(ctx, plain, -1, SQLITE_TRANSIENT);
-  sqlite3_free(plain);
-}
-
-/*
- * Equivalente a ENC, usando procedimento alternativo.
- *
- * ENC2 é a função inversa de DEC2:
- *
- *    select ENC2(chave, DEC2(chave, texto)) == texto;
-*/
-static void enc2(sqlite3_context *ctx, int argc, sqlite3_value **argv)
-{
-  const char *key, *plain;
-  char *cypher;
-
-  assert(2 == argc);
-
-  if (SQLITE_NULL == sqlite3_value_type(argv[0])) {
-    sqlite3_result_error(ctx, "can't use NULL as key value", -1);
-    return ;
+  krypt = sqlite3_get_auxdata(ctx, 0);
+  if (!krypt) {
+    krypt = (krypt_t *) sqlite3_malloc(sizeof(krypt_t));
+    if (!krypt) {
+      sqlite3_result_error(ctx, "memória insuficiente", -1);
+      sqlite3_free(texto);
+      return ;
+    }
+    init_krypt(krypt, modo);
+    sqlite3_set_auxdata(ctx, 0, krypt, sqlite3_free);
   }
-  key = (char *) sqlite3_value_text(argv[0]);
-  if (strlen(key) == 0) {
-    sqlite3_result_error(ctx, "key value is an zero length string", -1);
-    return ;
-  }
+  decifrar(cifrado, chave, texto, krypt);
 
-  if (SQLITE_NULL == sqlite3_value_type(argv[1])) {
-    sqlite3_result_null(ctx);
-    return ;
-  }
-  plain = (char *) sqlite3_value_text(argv[1]);
-
-  cypher = sqlite3_malloc( strlen(plain) + 1 );
-  if (!cypher) {
-    sqlite3_result_error_nomem(ctx);
-    return ;
-  }
-  crypt2(plain, key, cypher, &encrypt_char);
-
-  sqlite3_result_text(ctx, cypher, -1, SQLITE_TRANSIENT);
-  sqlite3_free(cypher);
-}
-
-/*
- * Equivalente a DEC, usando procedimento alternativo.
- *
- * DEC2 é a função inversa de ENC2:
- *
- *    select DEC2(chave, ENC2(chave, texto)) == texto;
-*/
-static void dec2(sqlite3_context *ctx, int argc, sqlite3_value **argv)
-{
-  const char *key, *cypher;
-  char *plain;
-
-  assert(2 == argc);
-
-  if (SQLITE_NULL == sqlite3_value_type(argv[0])) {
-    sqlite3_result_error(ctx, "can't use NULL as key value", -1);
-    return ;
-  }
-  key = (char *) sqlite3_value_text(argv[0]);
-  if (strlen(key) == 0) {
-    sqlite3_result_error(ctx, "key value is an zero length string", -1);
-    return ;
-  }
-
-  if (SQLITE_NULL == sqlite3_value_type(argv[1])) {
-    sqlite3_result_null(ctx);
-    return ;
-  }
-  cypher = (char *) sqlite3_value_text(argv[1]);
-
-  plain = sqlite3_malloc( strlen(cypher) + 1 );
-  if (!plain) {
-    sqlite3_result_error_nomem(ctx);
-    return ;
-  }
-  crypt2(cypher, key, plain, &decrypt_char);
-
-  sqlite3_result_text(ctx, plain, -1, SQLITE_TRANSIENT);
-  sqlite3_free(plain);
+  sqlite3_result_text(ctx, texto, -1, SQLITE_TRANSIENT);
+  sqlite3_free(texto);
 }
 
 int sqlite3_extension_init(sqlite3 *db, char **err, const sqlite3_api_routines *api)
 {
   SQLITE_EXTENSION_INIT2(api)
 
-  sqlite3_create_function(db, "MD5", 1, SQLITE_UTF8, NULL, md5, NULL, NULL);
-  sqlite3_create_function(db, "ENC", 2, SQLITE_UTF8, NULL, enc, NULL, NULL);
-  sqlite3_create_function(db, "DEC", 2, SQLITE_UTF8, NULL, dec, NULL, NULL);
-  sqlite3_create_function(db, "ENC2", 2, SQLITE_UTF8, NULL, enc2, NULL, NULL);
-  sqlite3_create_function(db, "DEC2", 2, SQLITE_UTF8, NULL, dec2, NULL, NULL);
+  sqlite3_create_function(db, "MD5",  1, SQLITE_UTF8, NULL, md5, NULL, NULL);
+  sqlite3_create_function(db, "ENC", -1, SQLITE_UTF8, NULL, enc, NULL, NULL);
+  sqlite3_create_function(db, "DEC", -1, SQLITE_UTF8, NULL, dec, NULL, NULL);
 
   return 0;
 }
