@@ -1,23 +1,40 @@
 #!/bin/bash
 #
-# Compiles loadable extension library for sqlite3.
+# Compilação das extensões carregáveis do SQLite.
 #
-# Linux users: Package libsqlite3-dev is required
-#              and libpcre3-dev is also required
-#              only if PCRE support is wanted
+# Pacotes (dependências):
 #
-# Ubuntu users: DO NOT change compilation parameters order.
+#   libsqlite3-dev  para compilação de qualquer extensão
 #
-# Run with argument GNU-REGEX to alternate support to GNU Regex.
+#   libpcre3-dev    para compilação da extensão "regexp" com suporte opcional
+#                   a PCRE senão usa GNU REGEX
 #
-SRC='more-functions.c'
+#   libssl-dev      para compilação da extensão "crypt"
 #
-shopt -s nocasematch
-if [[ $1 =~ ^GNU-REGEX$ ]];
+check() {
+  sudo ldconfig -p | grep -q "$1"
+}
+
+if check 'sqlite3'
 then
-  echo 'Compiling to support GNU Regular Expressions aka GNU Regex.'
-  gcc $SRC -fPIC -shared -lm -o ${SRC%.*}.so
+  for arquivo in 'more-functions.c' 'calendar.c'; do
+    echo "compilando \"$arquivo\""
+    gcc $arquivo -fPIC -shared -lm -o ${arquivo%.*}.so
+  done
+  #
+  if check 'pcre'; then
+    echo 'compilando "regexp.c" com suporte a Perl Compatible Regular Expressions aka PCRE'
+    gcc regexp.c -fPIC -shared -lm -lpcre -D PCRE -o regexp.so
+  else
+    echo 'compilando "regexp.c" com suporte a GNU Regular Expressions aka GNU REGEX'
+    gcc regexp.c -fPIC -shared -lm -o regexp.so
+  fi
+  #
+  if check 'crypto'
+  then
+    echo 'compilando "crypt.c"'
+    gcc crypt.c -fPIC -shared -lm -lcrypto -o crypt.so
+  fi
 else
-  echo 'Compiling to support Perl Compatible Regular Expressions aka PCRE.'
-  gcc $SRC -D PCRE -fPIC -shared -lm -lpcre -o ${SRC%.*}.so
+  echo '"libsqlite3-dev" não está disponível.'
 fi
