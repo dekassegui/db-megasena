@@ -35,16 +35,15 @@ enum date_components { YEAR = 0, MONTH = 1, DAY = 2 };
 static const int OFFSET[2][3] = { { 6, 3, 0 } /* DD-MM-YYYY */,
                                   { 0, 5, 8 } /* YYYY-MM-DD */ };
 
+#define IS_LEAP_YEAR(y) (((y) % 4 == 0 && (y) % 100 != 0) || (y) % 400 == 0)
+
 /* Testa os valores dos componentes explícitos de alguma data. */
 static int chkdatefields(const int year, const int month, const int day)
 {
   char daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
   if (month < 1 || month > 12) return 0;
-  if (month == 2)
-  {
-    daysInMonth[1] = (year%4 == 0 && year%100 != 0) || year%400 == 0 ? 29 : 28;
-  }
+  if (month == 2) daysInMonth[1] = 28 + IS_LEAP_YEAR(year);
   return (day > 0 && day <= daysInMonth[month-1]);
 }
 
@@ -331,6 +330,10 @@ static void days_between_dates(ctx, argc, argv)
   sqlite3_result_int(ctx, difftime(seconds[1], seconds[0]) / 86400);
 }
 
+#define TERM(y, d) (int) ((y - 1.0) / d)
+
+#define DAYCODE(y) ((y + TERM(y, 4) - TERM(y, 100) + TERM(y, 400)) % 7)
+
 /*
  * Retorna o nome abreviado do dia da semana de data expressa com seu número
  * inteiro de segundos decorridos na era Unix ou representada como string no
@@ -339,23 +342,28 @@ static void days_between_dates(ctx, argc, argv)
 static void weekday(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
   const char *WEEKDAY[7] = { "Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb" };
-  struct tm *broken_time;
-  time_t seconds;
+  int wday;
 
   if (SQLITE_INTEGER == sqlite3_value_type(argv[0])) {
-    seconds = (time_t) sqlite3_value_int64(argv[0]);
+    time_t seconds = (time_t) sqlite3_value_int64(argv[0]);
+    struct tm *broken_time = localtime(&seconds);
+    wday = broken_time->tm_wday;
   } else if (SQLITE3_TEXT == sqlite3_value_type(argv[0])) {
     char *date = (char *) sqlite3_value_text(argv[0]);
     int x = chkdate(date, YYYY_MM_DD);
     if (x || chkdate(date, DD_MM_YYYY)) {
-      seconds = datestring_to_nixtime(date, x);
+      const int ndays[] = { 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
+      const int year = atoi(date+OFFSET[x][YEAR]);
+      const int month = atoi(date+OFFSET[x][MONTH]);
+      int n = atoi(date+OFFSET[x][DAY]) - 1;
+      if (month > 1) n += ndays[month-2] + (month > 2 && IS_LEAP_YEAR(year));
+      wday = (DAYCODE(year) + n) % 7;
     } else {
       sqlite3_result_error(ctx, "argumento não contém data valida", -1);
       return ;
     }
   }
-  broken_time = localtime(&seconds);
-  sqlite3_result_text(ctx, WEEKDAY[broken_time->tm_wday], -1, SQLITE_TRANSIENT);
+  sqlite3_result_text(ctx, WEEKDAY[wday], -1, SQLITE_TRANSIENT);
 }
 
 /*
@@ -429,24 +437,17 @@ static void dateadd(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 
 extern long int timezone;
 
-/*
- * Informa a configuração da "timezone" e "daylight saving time" quando
- * efetiva.
-*/
+extern char *tzname[2];
+
+/* Informa o fuso horário aka "timezone" em vigência no sistema. */
 static void timezone_info(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
   time_t seconds = time(NULL);
-  struct tm *broken_time = localtime(&seconds);
+  struct tm *t = localtime(&seconds);
   int h = FAST_ABS(timezone);
-  int m = h % 3600 / 60;
-  char *z = sqlite3_mprintf("UTC%c%02d:%02d", ((timezone > 0) ? '-' : '+'), h/3600, m);
-#if __GNUC__ && !__STRICT_ANSI__
-  z = sqlite3_mprintf("%s\n%z", broken_time->tm_zone, z);
-#endif
-  if (broken_time->tm_isdst) {
-    z = sqlite3_mprintf("%z\nObservação: Usando horário de verão.", z);
-  }
-  sqlite3_result_text(ctx, z, -1, sqlite3_free);
+  char *r = sqlite3_mprintf("%c%02d%02d %s", (timezone > 0 ? '-' : '+'),
+         (h / 3600 - t->tm_isdst), (h % 3600 / 60), tzname[t->tm_isdst]);
+  sqlite3_result_text(ctx, r, -1, sqlite3_free);
 }
 
 int sqlite3_extension_init(db, err, api)
