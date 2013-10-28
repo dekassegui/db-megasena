@@ -37,16 +37,6 @@ static const int OFFSET[2][3] = { { 6, 3, 0 } /* DD-MM-YYYY */,
 
 #define IS_LEAP_YEAR(y) (((y) % 4 == 0 && (y) % 100 != 0) || (y) % 400 == 0)
 
-/* Testa os valores dos componentes explícitos de alguma data. */
-static int chkdatefields(const int year, const int month, const int day)
-{
-  char daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
-
-  if (month < 1 || month > 12) return 0;
-  if (month == 2) daysInMonth[1] = 28 + IS_LEAP_YEAR(year);
-  return (day > 0 && day <= daysInMonth[month-1]);
-}
-
 /*
  * Validação dos componentes da data expressa na string 'date' terminada com
  * NUL, condicionada ao check-up sequencial do seu formato, conforme valor do
@@ -61,10 +51,15 @@ static int chkdate(const char *date, const int x)
     for (j++; j < k && IS_DIGIT(date[j]); ++j) ;
     if (j == k && IS_SEPARATOR(date[j])) {
       for (k = 10, ++j; j < k && IS_DIGIT(date[j]); ++j) ;
-      if (j == k && date[j] == 0)
-        return chkdatefields(atoi(date + OFFSET[x][YEAR]),
-                             atoi(date + OFFSET[x][MONTH]),
-                             atoi(date + OFFSET[x][DAY]));
+      if (j == k && date[j] == 0) {
+        const char daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+        int year  = atoi(date + OFFSET[x][YEAR]);
+        int month = atoi(date + OFFSET[x][MONTH]);
+        int day   = atoi(date + OFFSET[x][DAY]);
+        return (0 < month && month < 13)
+               && (0 < day && day <= (daysInMonth[month-1]
+                                      + (month == 2 && IS_LEAP_YEAR(year))));
+      }
     }
   }
   return 0;
@@ -103,7 +98,7 @@ static void chkdateFunc(sqlite3_context *ctx, int argc, sqlite3_value **argv)
   sqlite3_result_int(ctx, chkdate(z, as_isodate));
 }
 
-/* Função complementar de "datefield" evitando código redundante. */
+/* Função complementar de "datepart" evitando código redundante. */
 static int chk_2nd_argument(sqlite3_context *ctx, int *f, sqlite3_value **argv)
 {
   if (SQLITE_INTEGER == sqlite3_value_type(argv[1])) {
@@ -111,8 +106,21 @@ static int chk_2nd_argument(sqlite3_context *ctx, int *f, sqlite3_value **argv)
     if (YEAR <= *f && *f <= DAY) return 1;
     sqlite3_result_error(ctx, "número de ordem do componente é incorreto.\n" \
       "Use 0 para extrair o ANO, 1 para extrair o mês e 2 para extrair o dia.", -1);
+  } if (SQLITE3_TEXT == sqlite3_value_type(argv[1])) {
+    char *z = (char *) sqlite3_value_text(argv[1]);
+    if (sqlite3_stricmp("YEAR", z) == 0 || sqlite3_stricmp("ANO", z) == 0) {
+      *f = YEAR;
+    } else if (sqlite3_stricmp("MONTH", z) == 0 || sqlite3_stricmp("MES", z) == 0 || sqlite3_stricmp("MÊS", z) == 0 || sqlite3_stricmp("mês", z) == 0) {
+      *f = MONTH;
+    } else if (sqlite3_stricmp("DAY", z) == 0 || sqlite3_stricmp("DIA", z) == 0) {
+      *f = DAY;
+    } else {
+      sqlite3_result_error(ctx, "não reconheceu nome de componente de data no segundo argumento.", -1);
+      return 0;
+    }
+    return 1;
   } else {
-    sqlite3_result_error(ctx, "segundo argumento não é do tipo inteiro", -1);
+    sqlite3_result_error(ctx, "segundo argumento não é do tipo inteiro ou texto", -1);
   }
   return 0;
 }
@@ -121,10 +129,11 @@ static int chk_2nd_argument(sqlite3_context *ctx, int *f, sqlite3_value **argv)
  * Extrai valor numérico de componente de data representada numa string com
  * formato YYYY-MM-DD ou DD-MM-YYYY, ou expressa pelo seu número inteiro de
  * segundos decorridos na era Unix aka "epoch", "timestamp" ou "unixtime".
- * O primeiro argumento é a data e o segundo é o número de ordem do componente
- * intencionado tal que; "0" extrai o ano, "1" extrai o mês e "2" extrai o dia.
+ * O primeiro argumento é a data e o segundo é o nome do componente ou o
+ * número de ordem do componente tal que; "0" extrai o ano, "1" extrai o mês
+ * e "2" extrai o dia.
 */
-static void datefield(sqlite3_context *ctx, int argc, sqlite3_value **argv)
+static void datepart(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
   int f, rz;
 
@@ -276,7 +285,7 @@ static void datestr(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 /*
  * Alterna o formato de data representada como string.
 */
-static void swap_format(sqlite3_context *ctx, int argc, sqlite3_value **argv)
+static void swapformat(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
   char *date;
   int j;
@@ -352,11 +361,11 @@ static void weekday(sqlite3_context *ctx, int argc, sqlite3_value **argv)
     char *date = (char *) sqlite3_value_text(argv[0]);
     int x = chkdate(date, YYYY_MM_DD);
     if (x || chkdate(date, DD_MM_YYYY)) {
-      const int ndays[] = { 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
-      const int year = atoi(date+OFFSET[x][YEAR]);
-      const int month = atoi(date+OFFSET[x][MONTH]);
-      int n = atoi(date+OFFSET[x][DAY]) - 1;
-      if (month > 1) n += ndays[month-2] + (month > 2 && IS_LEAP_YEAR(year));
+      const int ndays[] = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
+      int year  = atoi(date + OFFSET[x][YEAR]);
+      int month = atoi(date + OFFSET[x][MONTH]);
+      int n     = atoi(date + OFFSET[x][DAY]) - 1
+                  + ndays[month-1] + (month > 2 && IS_LEAP_YEAR(year));
       wday = (DAYCODE(year) + n) % 7;
     } else {
       sqlite3_result_error(ctx, "argumento não contém data valida", -1);
@@ -456,10 +465,10 @@ int sqlite3_extension_init(db, err, api)
   SQLITE_EXTENSION_INIT2(api)
 
   sqlite3_create_function(db, "CHKDATE", -1, SQLITE_UTF8, NULL, chkdateFunc, NULL, NULL);
-  sqlite3_create_function(db, "DATEPART", 2, SQLITE_UTF8, NULL, datefield, NULL, NULL);
+  sqlite3_create_function(db, "DATEPART", 2, SQLITE_UTF8, NULL, datepart, NULL, NULL);
   sqlite3_create_function(db, "TIMESTAMP", 1, SQLITE_UTF8, NULL, timestamp, NULL, NULL);
   sqlite3_create_function(db, "DATESTR", -1, SQLITE_UTF8, NULL, datestr, NULL, NULL);
-  sqlite3_create_function(db, "SWAPFORMAT", 1, SQLITE_UTF8, NULL, swap_format, NULL, NULL);
+  sqlite3_create_function(db, "SWAPFORMAT", 1, SQLITE_UTF8, NULL, swapformat, NULL, NULL);
   sqlite3_create_function(db, "DIFFDATES", 2, SQLITE_UTF8, NULL, days_between_dates, NULL, NULL);
   sqlite3_create_function(db, "WEEKDAY", 1, SQLITE_UTF8, NULL, weekday, NULL, NULL);
   sqlite3_create_function(db, "TODAY", -1, SQLITE_UTF8, NULL, today, NULL, NULL);
