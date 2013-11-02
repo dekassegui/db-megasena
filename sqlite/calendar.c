@@ -6,7 +6,7 @@
  *
  * Compilação:
  *
- *    gcc calendar.c -Wall -fPIC -shared -lm -o calendar.so
+ *    gcc calendar.c -Wall -fPIC -shared -o calendar.so
  *
  * Uso em arquivos de inicialização ou sessões interativas:
  *
@@ -18,6 +18,10 @@
 */
 #include <sqlite3ext.h>
 SQLITE_EXTENSION_INIT1
+
+#if SQLITE_VERSION_NUMBER < 3007011
+#define sqlite3_stricmp(a, b) sqlite3_strnicmp((a), (b), strlen(a))
+#endif
 
 #include <stdlib.h>
 #include <string.h>
@@ -341,8 +345,6 @@ static void days_between_dates(ctx, argc, argv)
 
 #define TERM(y, d) (int) ((y - 1.0) / d)
 
-#define DAYCODE(y) ((y + TERM(y, 4) - TERM(y, 100) + TERM(y, 400)) % 7)
-
 /*
  * Retorna o nome abreviado do dia da semana de data expressa com seu número
  * inteiro de segundos decorridos na era Unix ou representada como string no
@@ -362,11 +364,11 @@ static void weekday(sqlite3_context *ctx, int argc, sqlite3_value **argv)
     int x = chkdate(date, YYYY_MM_DD);
     if (x || chkdate(date, DD_MM_YYYY)) {
       const int ndays[] = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
-      int year  = atoi(date + OFFSET[x][YEAR]);
-      int month = atoi(date + OFFSET[x][MONTH]);
-      int n     = atoi(date + OFFSET[x][DAY]) - 1
-                  + ndays[month-1] + (month > 2 && IS_LEAP_YEAR(year));
-      wday = (DAYCODE(year) + n) % 7;
+      int y = atoi(date + OFFSET[x][YEAR]);
+      int m = atoi(date + OFFSET[x][MONTH]);
+      int d = atoi(date + OFFSET[x][DAY]);
+      int n = d - 1 + ndays[m-1] + (m > 2 && IS_LEAP_YEAR(y));
+      wday = (y + TERM(y, 4) - TERM(y, 100) + TERM(y, 400) + n) % 7;
     } else {
       sqlite3_result_error(ctx, "argumento não contém data valida", -1);
       return ;
