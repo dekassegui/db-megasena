@@ -49,7 +49,7 @@ DROP TABLE IF EXISTS view_to_build_html;
 CREATE TABLE view_to_build_html
 AS SELECT
     dezena, frequencia, latencia,
-    (latencia+max_latencia/2)*100.0/frequencia/frequencia AS ifrap,
+    (latencia+max_latencia/2.0)*100/frequencia/frequencia AS ifrap,
     0.2+0.8*((frequencia-min_frequencia)/amplitude) AS alfa,
     0.1+0.9*(1-POWER(latencia*1.0/max_latencia, exponent)) AS beta
    FROM info_dezenas,
