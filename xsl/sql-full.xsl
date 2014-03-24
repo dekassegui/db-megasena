@@ -48,10 +48,12 @@ CREATE TRIGGER IF NOT EXISTS on_concursos_insert AFTER INSERT ON concursos BEGIN
   INSERT INTO dezenas_sorteadas (concurso,dezena) VALUES (new.concurso,new.dezena4);
   INSERT INTO dezenas_sorteadas (concurso,dezena) VALUES (new.concurso,new.dezena5);
   INSERT INTO dezenas_sorteadas (concurso,dezena) VALUES (new.concurso,new.dezena6);
+  INSERT INTO sugestoes SELECT new.concurso, dezena FROM info_dezenas WHERE frequencia &#60; new.concurso/10.0 AND latencia &#62;&#61; 10;
 END;
 CREATE TRIGGER IF NOT EXISTS on_concursos_delete AFTER DELETE ON concursos BEGIN
   DELETE FROM dezenas_juntadas WHERE (concurso == old.concurso);
   DELETE FROM dezenas_sorteadas WHERE (concurso == old.concurso);
+  DELETE FROM sugestoes WHERE (concurso == old.concurso);
 END;
 DROP TABLE IF EXISTS dezenas_juntadas;
 CREATE TABLE dezenas_juntadas (
@@ -75,6 +77,18 @@ CREATE VIEW IF NOT EXISTS info_dezenas
   AS SELECT dezena, count(dezena) AS frequencia, ((SELECT max(concurso) FROM concursos) - max(concurso)) AS latencia
   FROM dezenas_sorteadas
   GROUP BY dezena;
+DROP TABLE IF EXISTS sugestoes;
+CREATE TABLE sugestoes (
+  -- tabela dos números sugeridos para o próximo concurso, preenchida
+  -- automaticamente a cada inserção de registro na tabela concursos
+  concurso    INTEGER,
+  dezena      INTEGER,
+  FOREIGN KEY (concurso) REFERENCES concursos(concurso));
+CREATE VIEW IF NOT EXISTS acertos
+  -- tabela dos números sugeridos que foram sorteados
+  AS SELECT * FROM sugestoes WHERE dezena IN (
+    SELECT dezena FROM dezenas_sorteadas
+    WHERE dezenas_sorteadas.concurso == sugestoes.concurso+1);
 
     <xsl:call-template name="SQL_INSERT">
       <xsl:with-param name="rows_offset" select="1"/>
