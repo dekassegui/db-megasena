@@ -24,7 +24,7 @@ cat(sprintf('\n\t  p-value = %.4f', teste$p.value))
 action = ifelse(teste$p.value > 0.05, 'Não rejeitamos', 'Rejeitamos')
 cat('\n\n', 'Conclusão:', action, 'H0 conforme evidências estatísticas.\n\n')
 
-png(filename='histo-dezenas-agrupadas.png', width=560, height=560, family='DejaVu Serif', pointsize=11)
+png(filename='img/histo-dezenas-agrupadas.png', width=560, height=560, family='DejaVu Serif', pointsize=11)
 op <- par(bg = "white", fg="darkgray")
 hist(
   datum$dezena,

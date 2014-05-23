@@ -23,7 +23,7 @@ dimnames(tabela) <- list(sprintf('%02d', 1:length(tabela)))
 
 # arquivo para armazenamento da imagem com declaração das dimensões do
 # display gráfico e tamanho da fonte de caracteres
-png(filename='frequencias.png', width=1000, height=558, pointsize=13)
+png(filename='img/frequencias.png', width=1000, height=558, pointsize=13)
 
 barplot(
   tabela,

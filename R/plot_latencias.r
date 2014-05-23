@@ -18,7 +18,7 @@ x <- as.vector(datum$latencia)
 
 names(x) <- c(sprintf('%02d', 1:60))
 
-png(filename='latencias.png', width=1000, height=558, pointsize=13)
+png(filename='img/latencias.png', width=1000, height=558, pointsize=13)
 
 barplot(
   x,
