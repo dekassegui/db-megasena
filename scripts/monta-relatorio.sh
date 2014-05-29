@@ -100,7 +100,7 @@ cat >> $html <<DOC
 DOC
 
 # cria gráfico das frequências e latências
-./R/plot-both.r
+./R/plot-both.R
 
 png_compress() {
   local tmpfile=/tmp/saida.png
@@ -122,7 +122,7 @@ DOC
 probability='5%'
 critical='77.931'
 read n chi status <<< $(sqlite3 -separator ' ' megasena.sqlite "SELECT n, round(chi,3), (chi >= $critical) FROM (SELECT n, sum(desvio*desvio/esperanca) AS chi FROM (SELECT n, esperanca, (frequencia-esperanca) AS desvio FROM info_dezenas, (SELECT n, n/10.0 AS esperanca FROM (SELECT count(concurso) AS n from concursos))))")
-R/plot-chi-59.r $chi
+R/plot-chi-59.R $chi
 png_compress 'img/chi-59.png'
 cat >> $html <<DOC
     <h2>Teste de Aderência <span>&#967;&#178;<!-- 0x03C7 0x00B2 χ² --></span></h2>
@@ -305,7 +305,7 @@ FROM (
     )
   )
 )")
-R/plot-chi-one.r $chi
+R/plot-chi-one.R $chi
 png_compress 'img/chi-one.png'
 cat >> $html <<DOC
     <h2>Teste de Independência “Acumular x Sequência de dezenas consecutivas”</h2>

@@ -1,12 +1,16 @@
 #!/usr/bin/Rscript
+#
+# Montagem dos gráficos das frequências e latências combinados em única imagem
+# que faz parte do relatório sobre o concurso mais recente da Mega-Sena.
+#
 library(RSQLite, quietly=TRUE)
 con <- sqliteNewConnection(dbDriver('SQLite'), dbname='megasena.sqlite')
 
 rs <- dbSendQuery(con, 'SELECT dezena FROM dezenas_sorteadas')
 datum <- fetch(rs, n = -1)
 
-nrec = length(datum$dezena) / 6;
-titulo = sprintf('Frequências das dezenas #%d', nrec)
+nrec <- length(datum$dezena) / 6;
+titulo <- sprintf('Frequências das dezenas #%d', nrec)
 
 # monta a tabela das classes com suas respectivas frequências
 tabela <- table(datum$dezena)
@@ -20,16 +24,19 @@ dimnames(tabela) <- list(rotulos)
 fname=sprintf('img/both-%d.png', nrec)
 png(filename=fname, width=1100, height=600, pointsize=9)
 
-# preserva configuração do device gráfico antes de personalizar
-op = par(mfrow=c(2, 1))  # dois gráficos alinhados horizontalmente
+# preserva configuração do dispositivo gráfico antes de personalizar
+# layout posicionando os dois gráficos alinhados horizontalmente
+op <- par(mfrow=c(2, 1))
+
+bar_colors <- c('gold', 'orange')
 
 barplot(
   tabela,
   main=titulo,
   ylab='frequência',
-  col=c('gold', 'orange'),
-  space=.25,
-  ylim=c(0, (1+max(tabela)%/%25)*25)
+  col=bar_colors,
+  space=0.25,
+  ylim=c(0, (1 + max(tabela) %/% 25) * 25)
 )
 
 # sobrepõe linha horizontal de referência
@@ -54,7 +61,7 @@ datum <- fetch(rs, n = -1)
 dbClearResult(rs)
 sqliteCloseConnection(con)
 
-titulo = sprintf('Latências das dezenas #%d', nrec)
+titulo <- sprintf('Latências das dezenas #%d', nrec)
 
 x <- as.vector(datum$latencia)
 
@@ -64,7 +71,8 @@ barplot(
   x,
   main=titulo,
   ylab='latência',
-  col=c('gold', 'orange')
+  col=bar_colors,
+  space=0.25
 )
 
 abline(
@@ -81,6 +89,6 @@ legend(
   legend=c('esperança')
 )
 
-par = op  # restaura device gráfico
+par <- op  # restaura device gráfico
 
 dev.off()   # finaliza a renderização e fecha o arquivo
