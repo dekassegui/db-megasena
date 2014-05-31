@@ -88,7 +88,7 @@ datdois <- fetch(rs, n=-1)
 for (nr in 1:length(datdois$concurso)) {
   concurso <- datdois$concurso[nr]
   # usa cor diferente para o primeiro concurso
-  if (concurso == 1) color <- '#ff66cc' else color <- '#cc9900'
+  color <- ifelse(concurso == 1, '#ff66cc', '#cc9900')
   points(concurso, datum$pvalue[concurso], col=color, pch=20)
 }
 

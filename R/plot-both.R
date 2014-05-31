@@ -36,7 +36,8 @@ barplot(
   ylab='frequência',
   col=bar_colors,
   space=0.25,
-  ylim=c(0, (1 + max(tabela) %/% 25) * 25)
+  ylim=c(120, (1 + max(tabela) %/% 25) * 25),
+  xpd=FALSE
 )
 
 # sobrepõe linha horizontal de referência
