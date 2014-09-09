@@ -77,8 +77,10 @@ plot(
   col="#00CC99",          # cor de renderização dos simbolos
   col.lab="#993300",      # cor de renderização dos títulos dos eixos
   col.axis="#006633",     # cor de renderização dos valores nos eixos
-  bty='n'                 # inabilita renderização das bordas
+  bty='n',                # inabilita renderização das bordas
+  yaxt='n'
 )
+axis(2, las=2, col.axis="#006633")
 
 # obtém os números dos primeiros concursos em cada ano
 rs <- dbSendQuery(con, "SELECT MIN(concurso) as concurso FROM concursos GROUP BY STRFTIME('%Y', data_sorteio)")
