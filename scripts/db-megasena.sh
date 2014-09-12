@@ -38,20 +38,21 @@ while [[ $1 ]]; do
     --help | -h)
       echo -e "
   Cria, reconstrói parcialmente ou sincroniza db SQLite com dados extraídos de
-  arquivo html contendo tabela da série temporal dos concursos da mega-sena.\n
-  O download do arquivo html disponível no website da Caixa Econômica Federal
-  ocorrerá sempre que:\n
-   (1) o arquivo não existir localmente\n
-   (2) ou o arquivo existir localmente e sua data de criação/modificação
-       for anterior à data de criação/modificação do arquivo remoto, tal
-       que a data do último concurso listado no arquivo html é anterior
-       à data presumida do sorteio mais recentemente realizado\n
-   (3) ou se esse script for executado com o parâmetro --force-update\n
-  sobrescrevendo o arquivo previamente baixado nos dois últimos casos.\n
-  Uso: $(basename $0) [--force-update|-u] [--rebuild-db|-r] [--help|-h]\n
-  --force-update, -u Força download do arquivo html remoto atualizado.
-  --rebuild-db, -r   Força a reconstrução parcial do db SQLite.
-  --help, -h         Apresenta este help e finaliza execução do script.\n"
+  documento html contendo tabela da série temporal dos concursos da megasena.\n
+  O download do arquivo em compressão que contém o documento html, disponível
+  no web site da Caixa Econômica Federal, ocorrerá sempre que:\n
+   (1) o arquivo não existir localmente, ou\n
+   (2) o arquivo existir localmente e sua data de criação/modificação é
+       anterior à data de criação/modificação do arquivo remoto tal que
+       a data do último concurso listado no documento html é anterior à
+       data presumida do sorteio mais recentemente realizado.\n
+  Uso:
+        $(basename $0) [--force-update|-u] [--rebuild-db|-r] [--help|-h]\n
+  --force-update, -u   Força o download desconsiderando conteúdo do documento
+                       preexistente e data presumida de sorteio mais recente.
+  --rebuild-db, -r     Reconstrói parcialmente o db SQLite, regenerando tabelas,
+                       views, índices, triggers e preenche seu conteúdo.
+  --help, -h           Apresenta este resumo e finaliza a execução do script.\n"
       exit
     ;;
   esac
@@ -62,6 +63,9 @@ force_update=${force_update:-false}
 rebuild_db=${rebuild_db:-false}
 # reabilita "distinção entre letras maiúsculas e minusculas"
 shopt -u nocasematch
+
+shopt -s expand_aliases  # habilita expansão de alias
+alias Printf="LANG='pt_BR' printf"
 
 # formata indiferentemente ao separador de campos, data no formato
 # yyyy.mm.dd ou dd.mm.yyyy como data no formato yyyy-mm-dd
@@ -97,6 +101,16 @@ xpath() {
   xmllint --xpath "$1" $xml
 }
 
+sqlite() {
+  if [[ $1 == '-separator' ]]; then
+    local sep="$2"
+    shift 2
+    sqlite3 -separator "$sep" $db_file "$*"
+  else
+    sqlite3 $db_file "$*"
+  fi
+}
+
 declare -r html='D_MEGA.HTM'              # html baixado do website
 declare -r xml='MEGA.XML'                 # xml baseado no html
 declare -r db_file='megasena.sqlite'      # container do db SQLite
@@ -118,15 +132,17 @@ declare -r numero_ultimo_concurso='//table/tr[last()]/td[1]/text()'
 declare -r count_n_db='SELECT COUNT(concurso) FROM concursos'
 
 monta_xml() {
-  # remove entity mal declarada, atributos e espaços desnecessários
-  sed -r 's/&nbsp([^;])/\1/g; s/<(td|tr)[^>]+>/<\1>/g; s/\s*(\S+(\s\S+)*)\s*/\1/g; s/\r//g' $html > /tmp/mega.html
-  printf '<?xml version="1.0"? encoding="ISO-8859-1">\n<table>' > $xml
-  # extrai da tabela as linhas que contém registros de concursos
-  # com normalização de formatos numéricos e tipo boolean
-  xmllint --html --xpath '//table/tr[count(td)=21]' /tmp/mega.html | sed -r 's/\.//g; y/,/./; s/SIM/1/; t; s/N&Atilde;O/0/' >> $xml
-  printf '\n</table>\n' >> $xml
+  printf '<?xml version="1.0" encoding="UTF-8"?>\n\n<table>' > $xml
+  # (1) substitui o trecho inicial e remove elementos desnecessários
+  # (2) remove entity mal declarada e atributos desnecessários
+  # (3) extrai da tabela as linhas que contém registros de concursos
+  # (4) normaliza formatos numéricos e tipo boolean
+  sed '1d; /<tr[^>]*><\/tr>/d' $html | sed '1 i\
+<html><body><table><tr>
+' | sed  -r 's/\r//g; s/&nbsp([^;])/\1/g; s/<(td|tr)[^>]+>/<\1>/g' | xmllint --html --encode 'UTF-8' --xpath '//table/tr[count(td)=21]' - | sed -r 's/\.//g; y/,/./; s/SIM/1/; t; s/N&Atilde;O/0/' >> $xml
+  printf '</table>' >> $xml
   # transforma entities literais em numéricas evitando erros no xsltproc
-  tidy -xml -numeric -modify -quiet $xml
+  tidy -quiet -xml -numeric -modify $xml
   # ambos arquivos sempre terão o mesmo timestamp de última modificação
   touch -r $html $xml
 }
@@ -181,7 +197,7 @@ if [[ $force_update == true ]] || [[ ! -e $html ]]; then
   # disponível ou se ainda não existir localmente e então extrai o html
   # se mais recente que o previamente existente ou se ainda não existir,
   # tal que ambos procedimentos sobrescrevem arquivos
-  wget -a wget.log -N $url && unzip -q -o -u $(basename $url) $html
+  wget -o wget.log -N $url && unzip -q -o -u $(basename $url) $html
 
   # checa se não "existia" e o download foi mal sucedido
   if ! [[ -e $html ]]; then
@@ -199,17 +215,17 @@ if [[ $force_update == true ]] || [[ ! -e $html ]]; then
       k=$(xpath $count_n_xml)
       # se a quantidade de registros no db é igual a quantidade de
       # registros no xml recém criado ou atualizado
-      if (( $(sqlite3 $db_file "$count_n_db") == $k )); then
+      if (( $(sqlite $count_n_db) == $k )); then
         # extrai o caractére separador de campos declarado no script
         SEP=$(sed -nr '/^\.separator/ s/.+("|\d39)(.)\1.*/\2/p' $data_load)
         # obtêm o último registro no db
-        dbrec=$(sqlite3 -separator "$SEP" $db_file 'SELECT * FROM concursos WHERE concurso IS (SELECT MAX(concurso) FROM concursos)')
+        dbrec=$(sqlite -separator "$SEP" 'SELECT * FROM concursos WHERE concurso IS (SELECT MAX(concurso) FROM concursos)')
         # extrai o último registro do xml e formata como se obtido via SQLite
         xmlrec=$(xsltproc --param OFFSET $k --stringparam SEPARATOR "$SEP" $xsl $xml | sed -r 's/([^0-9.-])0+([1-9])/\1\2/g; s/(\.[0-9])0+/\1/g; s/NULL//g')
         # se o último registro do db não for igual ao último registro do xml
         # então força a sincronização do db eliminando seu último registro
         if [[ $dbrec != $xmlrec ]]; then
-          sqlite3 $db_file 'DELETE FROM concursos WHERE concurso IS (SELECT MAX(concurso) FROM concursos)'
+          sqlite 'DELETE FROM concursos WHERE concurso IS (SELECT MAX(concurso) FROM concursos)'
         fi
       fi
     fi
@@ -218,19 +234,19 @@ fi
 
 data=$(date -r $html '+%Y-%m-%d')
 printf '\nArquivo "%s" gerado em: %s.\n\n' $html "$(long_date $data)"
-n=$(xpath $count_n_xml)  # quantidade de registros no xml
+n=$(xpath $count_n_xml)
 k=$(xpath $numero_ultimo_concurso)
 data=$(xpath $data_ultimo_concurso)
-LANG='pt_BR' printf "            #registros: %'d\n\n" $n
+Printf "            #registros: %'d\n\n" $n
 printf '    Concurso mais recente\n\n'
-LANG='pt_BR' printf "                número: %'d\n" $k
+Printf "                número: %'d\n" $k
 printf '       data do sorteio: %s\n' "$(long_date $data)"
 
 # MANUTENÇÃO DO DB
 
 monta_buffer() {
   printf '\n\n\tXML ---( XSLT )--> Text'
-  # extrai o filename do buffer declarado no script
+  # extrai o path do buffer declarado no script
   local buffer=$(sed -nr '/^\.import/ s/.+("|\d39)(.+)\1.*/\2/p' $data_load)
   # extrai o caractére separador de campos declarado no script
   local SEP=$(sed -nr '/^\.separator/ s/.+("|\d39)(.)\1.*/\2/p' $data_load)
@@ -241,9 +257,9 @@ monta_buffer() {
 processa_buffer() {
   printf ' ---( SQLite )---> DB'
   # preenche o db com os dados no buffer
-  sqlite3 $db_file ".read $data_load"
+  sqlite ".read $data_load"
   # compara as quantidades de registros do html e do db
-  m=$(sqlite3 $db_file "$count_n_db")
+  m=$(sqlite $count_n_db)
   (( $n == $m )) && local status='bem' || local status='mal'
   printf '\n\n%s do db "%s" foi %s sucedida.\n' $1 $db_file $status
 }
@@ -254,7 +270,7 @@ if [[ $rebuild_db == true ]] || [[ ! -e $db_file ]]; then
 
   [[ -e $db_file ]] && operation='Reconstrução' || operation='Criação'
 
-  sqlite3 $db_file ".read $db_renew"
+  sqlite ".read $db_renew"
 
   monta_buffer 1  # todos os dados do xml
 
@@ -262,7 +278,7 @@ if [[ $rebuild_db == true ]] || [[ ! -e $db_file ]]; then
 
 else  # ATUALIZAÇÃO DO DB
 
-  m=$(sqlite3 $db_file "$count_n_db")   # quantidade de registros no db
+  m=$(sqlite $count_n_db)
 
   # atualiza o db somente se a quantidade de registros no db
   # é estritamente menor que a quantidade de registros no xml
@@ -282,8 +298,8 @@ else  # ATUALIZAÇÃO DO DB
 fi
 
 currency() {
-  LANG='pt_BR' printf "R$ %'d" ${1%.*}
-  f=${1#*.}
+  Printf "R$ %'d" ${1%.*}
+  local f=${1#*.}
   if [[ $1 == $f ]] || (( ${#f} == 0 )); then
     printf ',00'
   else
@@ -291,23 +307,21 @@ currency() {
   fi
 }
 
-LANG='pt_BR' printf "\n            #registros: %'d\n\n" $m
+Printf "\n            #registros: %'d\n\n" $m
 
-read n data acumulado dezenas <<< $(sqlite3 -separator ' ' $db_file 'SELECT concurso, data_sorteio, acumulado, GROUP_CONCAT(dezena, " ") FROM concursos NATURAL JOIN dezenas_sorteadas WHERE concurso IS (SELECT MAX(concurso) FROM concursos)')
+read n data acumulado dezenas <<< $(sqlite -separator ' ' 'SELECT concurso, data_sorteio, acumulado, GROUP_CONCAT(dezena, " ") FROM concursos NATURAL JOIN dezenas_sorteadas WHERE concurso IS (SELECT MAX(concurso) FROM concursos)')
 
 printf '    Concurso mais recente\n\n'
-LANG='pt_BR' printf "                número: %'d\n" $n
+Printf "                número: %'d\n" $n
 printf '       data do sorteio: %s\n\n' "$(long_date $data)"
-printf '     dezenas sorteadas:'
-printf ' %02d' $dezenas
-printf '\n\n'
+printf '     dezenas sorteadas: %02d %02d %02d %02d %02d %02d\n\n' $dezenas
 
 if (( $acumulado == 1 )); then
-  valor=$(sqlite3 $db_file "SELECT valor_acumulado FROM concursos WHERE concurso IS $n")
+  valor=$(sqlite "SELECT valor_acumulado FROM concursos WHERE concurso IS $n")
   [[ $valor ]] && valor=$(currency $valor) || valor='NOT FOUND'
   printf '       valor acumulado: %s\n' "$valor"
 else
-  read m valor <<< $(sqlite3 -separator ' ' $db_file "SELECT ganhadores_sena, rateio_sena FROM concursos WHERE concurso IS $n")
+  read m valor <<< $(sqlite -separator ' ' "SELECT ganhadores_sena, rateio_sena FROM concursos WHERE concurso IS $n")
   printf '   #ganhadores da sena: %d\n' $m
   printf '        rateio da sena: %s\n' "$(currency $valor)"
 fi
