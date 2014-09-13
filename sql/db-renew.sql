@@ -83,3 +83,9 @@ CREATE VIEW IF NOT EXISTS acertos
     SELECT dezena FROM dezenas_sorteadas
     WHERE dezenas_sorteadas.concurso == sugestoes.concurso+1);
 COMMIT;
+DROP TABLE IF EXISTS ganhadores;
+CREATE TABLE ganhadores (
+  concurso  INTEGER NOT NULL,
+  cidade    TEXT,
+  uf        TEXT,
+  FOREIGN KEY (concurso) REFERENCES concursos(concurso));

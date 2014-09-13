@@ -15,13 +15,14 @@ if [[ $lista ]]; then
   printf '\nOps! Este script usa '
   if (( ${#lista[*]} == 1 )); then
     printf '1 aplicativo que não está disponível'
+    printf '.\n\nDisponibilize-o instalando o pacote:\n\n\t'
   else
     printf '%d aplicativos que não estão disponíveis' ${#lista[*]}
+    printf '.\n\nDisponibilize-os instalando os pacotes:\n\n\t'
   fi
-  printf '.\n\nDisponibilize-o(s) instalando o(s) seguinte(s) pacote(s):\n\n\t'
   printf '   %s' ${lista[*]}
   printf '\n\n'
-  exit
+  exit 1
 fi
 
 # inabilita "distinção entre letras maiúsculas e minusculas"
@@ -111,44 +112,48 @@ sqlite() {
   fi
 }
 
+# extrai valor de propriedade do script SQLite
+value_of() {
+  sed -nr "/^\.$1/ s/.+(\d34|\d39)(.+)\1.*/\2/p" $2
+}
+
 declare -r html='D_MEGA.HTM'              # html baixado do website
 declare -r xml='MEGA.XML'                 # xml baseado no html
 declare -r db_file='megasena.sqlite'      # container do db SQLite
 declare -r db_renew='sql/db-renew.sql'    # script para criar/regenerar o db
 declare -r data_load='sql/data-load.sql'  # script de importação de dados do db
 declare -r xsl='xsl/list-builder.xsl'     # xsl gerador dos dados do db
+declare -r xox='sql/ganhadores.sql'       # script para atualizar "ganhadores"
+declare -r oxo='xsl/ganhadores.xsl'       # xsl gerador de dados de "ganhadores"
 
 # endereço do zipfile remoto contendo o arquivo html
 declare -r url='http://www1.caixa.gov.br/loterias/_arquivos/loterias/D_megase.zip'
 
 # expressão XPath p/obter a quantidade de registros no xml
-declare -r count_n_xml='count(//table/tr)'
+declare -r count_n_xml='count(//table/tr[count(td)=21])'
 
-declare -r data_ultimo_concurso='//table/tr[last()]/td[2]/text()'
+declare -r data_ultimo_concurso='//table/tr[count(td)=21][last()]/td[2]/text()'
 
-declare -r numero_ultimo_concurso='//table/tr[last()]/td[1]/text()'
+declare -r numero_ultimo_concurso='//table/tr[count(td)=21][last()]/td[1]/text()'
 
 # sql p/obter a quantidade de registros na tabela 'concursos'
 declare -r count_n_db='SELECT COUNT(concurso) FROM concursos'
 
 monta_xml() {
-  printf '<?xml version="1.0" encoding="UTF-8"?>\n\n<table>' > $xml
-  # (1) substitui o trecho inicial e remove elementos desnecessários
-  # (2) remove entity mal declarada e atributos desnecessários
-  # (3) extrai da tabela as linhas que contém registros de concursos
-  # (4) normaliza formatos numéricos e tipo boolean
-  sed '1d; /<tr[^>]*><\/tr>/d' $html | sed '1 i\
-<html><body><table><tr>
-' | sed  -r 's/\r//g; s/&nbsp([^;])/\1/g; s/<(td|tr)[^>]+>/<\1>/g' | xmllint --html --encode 'UTF-8' --xpath '//table/tr[count(td)=21]' - | sed -r 's/\.//g; y/,/./; s/SIM/1/; t; s/N&Atilde;O/0/' >> $xml
-  printf '</table>' >> $xml
-  # transforma entities literais em numéricas evitando erros no xsltproc
-  tidy -quiet -xml -numeric -modify $xml
+  # (1) remove entity mal declarada e atributos desnecessários
+  # (2) extrai as linhas da tabela exceto o header
+  # (3) normaliza formatos numéricos e tipo boolean
+  # (4) insere o xml prolog, a tag de abertura e de fechamento
+  # (5) transforma entities literais em numéricas
+  sed -r 's/\r//g; s/&nbsp([^;])/\1/g; s/<(td|tr)[^>]+>/<\1>/g' $html | xmllint --html --encode 'UTF-8' --xpath '//table/tr[position()>1]' - | sed -r 's/\.//g; y/,/./; s/SIM/1/; t; s/N&Atilde;O/0/' | sed '1 i\
+  <?xml version="1.0" encoding="UTF-8"?><table>
+  ' | sed -r '$ s#^.+$#&\n</table>#' | tidy -quiet -numeric -xml - > $xml
   # ambos arquivos sempre terão o mesmo timestamp de última modificação
   touch -r $html $xml
 }
 
 if [[ -e $html ]]; then
-  if ! [[ -e $xml ]] || (( $(timestamp $xml) != $(timestamp $html) )); then
+  if [[ ! -e $xml ]] || (( $(timestamp $xml) != $(timestamp $html) )); then
     monta_xml
   fi
 else
@@ -174,7 +179,7 @@ if [[ $force_update == false ]] && [[ -e $html ]]; then
   data=$(xpath $data_ultimo_concurso)
 
   # se a data presumida do concurso mais recente for posterior à data do
-  # último registro no xml então tentará obter o html remoto atualizado
+  # último registro no xml então tentará atualizar o zipfile/html remoto
   if (( $(unixtime $F) > $(unixtime $data) )); then
     force_update=true
   fi
@@ -199,8 +204,8 @@ if [[ $force_update == true ]] || [[ ! -e $html ]]; then
   # tal que ambos procedimentos sobrescrevem arquivos
   wget -o wget.log -N $url && unzip -q -o -u $(basename $url) $html
 
-  # checa se não "existia" e o download foi mal sucedido
-  if ! [[ -e $html ]]; then
+  # termina a execução se o html não "existia" e o download foi mal sucedido
+  if [[ ! -e $html ]]; then
     printf '\nErro: Arquivo "%s" não está disponível e o download foi mal sucedido.\n\n' $html
     exit 1
   fi
@@ -216,8 +221,8 @@ if [[ $force_update == true ]] || [[ ! -e $html ]]; then
       # se a quantidade de registros no db é igual a quantidade de
       # registros no xml recém criado ou atualizado
       if (( $(sqlite $count_n_db) == $k )); then
-        # extrai o caractére separador de campos declarado no script
-        SEP=$(sed -nr '/^\.separator/ s/.+("|\d39)(.)\1.*/\2/p' $data_load)
+        # extrai o separador de campos declarado no script
+        SEP=$(value_of 'separator' $data_load)
         # obtêm o último registro no db
         dbrec=$(sqlite -separator "$SEP" 'SELECT * FROM concursos WHERE concurso IS (SELECT MAX(concurso) FROM concursos)')
         # extrai o último registro do xml e formata como se obtido via SQLite
@@ -245,19 +250,27 @@ printf '       data do sorteio: %s\n' "$(long_date $data)"
 # MANUTENÇÃO DO DB
 
 monta_buffer() {
-  printf '\n\n\tXML ---( XSLT )--> Text'
+  printf '\n\tXML ---( XSLT )--> Text'
   # extrai o path do buffer declarado no script
-  local buffer=$(sed -nr '/^\.import/ s/.+("|\d39)(.+)\1.*/\2/p' $data_load)
-  # extrai o caractére separador de campos declarado no script
-  local SEP=$(sed -nr '/^\.separator/ s/.+("|\d39)(.)\1.*/\2/p' $data_load)
-  # monta o buffer transformando o conteúdo do xml
+  local buffer=$(value_of 'import' $data_load)
+  # extrai o separador de campos declarado no script
+  local SEP=$(value_of 'separator' $data_load)
+  # monta o buffer de preenchimento da tabela "concursos"
   xsltproc --param OFFSET $1 --stringparam SEPARATOR "$SEP" $xsl $xml > $buffer
+  # obtem parâmetros e monta o buffer de preenchimento da tabela "ganhadores"
+  buffer=$(value_of 'import'  $xox)
+  SEP=$(value_of 'separator'  $xox)
+  xsltproc --stringparam SEPARATOR "$SEP" $oxo $xml > $buffer
 }
 
 processa_buffer() {
   printf ' ---( SQLite )---> DB'
-  # preenche o db com os dados no buffer
-  sqlite ".read $data_load"
+  # preenche ou completa a tabela "concursos"
+  sqlite ".read $data_load" > /dev/null
+  # esvazia a tabela "ganhadores" se não houve criação/regeneração do db
+  [[ $2 == true ]] && sqlite 'DELETE FROM ganhadores WHERE concurso > 0'
+  # preenche a tabela "ganhadores"
+  sqlite ".read '$xox'" > /dev/null
   # compara as quantidades de registros do html e do db
   m=$(sqlite $count_n_db)
   (( $n == $m )) && local status='bem' || local status='mal'
@@ -270,11 +283,11 @@ if [[ $rebuild_db == true ]] || [[ ! -e $db_file ]]; then
 
   [[ -e $db_file ]] && operation='Reconstrução' || operation='Criação'
 
-  sqlite ".read $db_renew"
+  sqlite ".read $db_renew" > /dev/null
 
   monta_buffer 1  # todos os dados do xml
 
-  processa_buffer $operation
+  processa_buffer $operation false
 
 else  # ATUALIZAÇÃO DO DB
 
@@ -286,12 +299,12 @@ else  # ATUALIZAÇÃO DO DB
 
     monta_buffer $(( m + 1 ))  # dados complementares do xml
 
-    processa_buffer 'Sincronização'
+    processa_buffer 'Sincronização' true
 
   else
     printf '\nNão foi necessário sincronizar o db "%s".\n' $db_file
     if (( $m > $n )); then
-      printf '\nOBSERVAÇÃO: A quantidade de registros no db é > quantidade de registros no html!\n'
+      printf '\nOBSERVAÇÃO: Quantidade de registros no db > quantidade de registros no html.\n'
     fi
   fi
 
