@@ -3,6 +3,7 @@
 # Cria, reconstrói parcialmente ou sincroniza db SQLite com dados extraídos de
 # arquivo html contendo tabela da série temporal dos concursos da mega-sena.
 
+<<'VOID_CHECKUP_REQUISITOS'
 # checa disponibilidade dos comandos utilizados neste script
 for comando in sqlite3 unzip wget xmllint xsltproc tidy
 do
@@ -24,6 +25,7 @@ if [[ $lista ]]; then
   printf '\n\n'
   exit 1
 fi
+VOID_CHECKUP_REQUISITOS
 
 # inabilita "distinção entre letras maiúsculas e minusculas"
 shopt -s nocasematch
@@ -112,9 +114,9 @@ sqlite() {
   fi
 }
 
-# extrai valor de propriedade do script SQLite
+# extrai parâmetro de meta-command do SQLite de script arbitrário
 value_of() {
-  sed -nr "/^\.$1/ s/.+(\d34|\d39)(.+)\1.*/\2/p" $2
+  sed -nr "/^\.$1/ { s/.+(\d34|\d39)(.+)\1.*/\2/p; q }" $2
 }
 
 declare -r html='D_MEGA.HTM'              # html baixado do website
@@ -125,9 +127,12 @@ declare -r data_load='sql/data-load.sql'  # script de importação de dados do d
 declare -r xsl='xsl/list-builder.xsl'     # xsl gerador dos dados do db
 declare -r xox='sql/ganhadores.sql'       # script para atualizar "ganhadores"
 declare -r oxo='xsl/ganhadores.xsl'       # xsl gerador de dados de "ganhadores"
+declare -r lst='xsl/localidades.xsl'      # xsl listador de localidades de "ganhadores"
 
-# endereço do zipfile remoto contendo o arquivo html
+# endereço do zipfile remoto container do arquivo html
 declare -r url='http://www1.caixa.gov.br/loterias/_arquivos/loterias/D_megase.zip'
+
+declare -r zipfile=${url##*/}   # equivalente a basename $url
 
 # expressão XPath p/obter a quantidade de registros no xml
 declare -r count_n_xml='count(//table/tr[count(td)=21])'
@@ -139,30 +144,9 @@ declare -r numero_ultimo_concurso='//table/tr[count(td)=21][last()]/td[1]/text()
 # sql p/obter a quantidade de registros na tabela 'concursos'
 declare -r count_n_db='SELECT COUNT(concurso) FROM concursos'
 
-monta_xml() {
-  # (1) remove entity mal declarada e atributos desnecessários
-  # (2) extrai as linhas da tabela exceto o header
-  # (3) normaliza formatos numéricos e tipo boolean
-  # (4) insere o xml prolog, a tag de abertura e de fechamento
-  # (5) transforma entities literais em numéricas
-  sed -r 's/\r//g; s/&nbsp([^;])/\1/g; s/<(td|tr)[^>]+>/<\1>/g' $html | xmllint --html --encode 'UTF-8' --xpath '//table/tr[position()>1]' - | sed -r 's/\.//g; y/,/./; s/SIM/1/; t; s/N&Atilde;O/0/' | sed '1 i\
-  <?xml version="1.0" encoding="UTF-8"?><table>
-  ' | sed -r '$ s#^.+$#&\n</table>#' | tidy -quiet -numeric -xml - > $xml
-  # ambos arquivos sempre terão o mesmo timestamp de última modificação
-  touch -r $html $xml
-}
+# HABILITAÇÃO DO DOWNLOAD DO ZIPFILE CONTAINER DO HTML
 
-if [[ -e $html ]]; then
-  if [[ ! -e $xml ]] || (( $(timestamp $xml) != $(timestamp $html) )); then
-    monta_xml
-  fi
-else
-  [[ -e $xml ]] && rm -f $xml   # somente existirá xml se existir html
-fi
-
-# HABILITAÇÃO DO DOWNLOAD DO ARQUIVO HTML
-
-if [[ $force_update == false ]] && [[ -e $html ]]; then
+if [[ $force_update == false ]] && [[ -e $xml ]]; then
 
   # Pesquisa a data presumida do sorteio mais recente dado que são
   # realizados normalmente às quartas-feiras e sábados às 20:30
@@ -178,43 +162,61 @@ if [[ $force_update == false ]] && [[ -e $html ]]; then
   # extrai a data do último registro no xml
   data=$(xpath $data_ultimo_concurso)
 
-  # se a data presumida do concurso mais recente for posterior à data do
-  # último registro no xml então tentará atualizar o zipfile/html remoto
+  # se a data presumida do sorteio mais recente for posterior à data
+  # do último registro no xml então força a atualização do zipfile
   if (( $(unixtime $F) > $(unixtime $data) )); then
     force_update=true
   fi
 
 fi
 
-# DOWNLOAD DO ARQUIVO HTML
+# DOWNLOAD DO ZIPFILE CONTAINER DO HTML
 
-if [[ $force_update == true ]] || [[ ! -e $html ]]; then
+if [[ $force_update == true ]] || [[ ! -e $xml ]]; then
 
-  printf '\nRequisitando "%s" ' $html
-  # se existe html então preserva seu timestamp
-  if [[ -e $html ]]; then
-    printf 'mais recente '
-    declare -i tm=$(timestamp $html)
-  fi
-  printf 'ao website.\n'
+  # se existe zipfile então preserva seu timestamp
+  [[ -e $zipfile ]] && declare -i tm=$(timestamp $zipfile)
+
+  printf '\nRequisitando "%s" ao website.\n' $zipfile
 
   # realiza o download do zipfile remoto se mais recente que o localmente
-  # disponível ou se ainda não existir localmente e então extrai o html
-  # se mais recente que o previamente existente ou se ainda não existir,
-  # tal que ambos procedimentos sobrescrevem arquivos
-  wget -o wget.log -N $url && unzip -q -o -u $(basename $url) $html
+  # disponível ou se ainda não existir
+  wget -o wget.log --timestamping $url
 
-  # termina a execução se o html não "existia" e o download foi mal sucedido
-  if [[ ! -e $html ]]; then
-    printf '\nErro: Arquivo "%s" não está disponível e o download foi mal sucedido.\n\n' $html
+  # termina a execução do script se o zipfile não está disponível
+  if [[ ! -e $zipfile ]]; then
+    printf '\nErro: Arquivo "%s" não está disponível.\n\n' $zipfile
     exit 1
   fi
 
-  # checa se "existia" o xml e se o html não foi atualizado
-  if [[ -e $xml ]] && (( $tm >= $(timestamp $html) )); then
-    printf '\nOBSERVAÇÃO: Arquivo "%s" não foi atualizado!\n' $html
+  printf '\nInformação: "%s" ' $zipfile
+  if [[ $tm ]]; then
+    (( $tm < $(timestamp $zipfile) )) || printf 'não '
+    printf 'foi atualizado.\n'
   else
-    monta_xml # cria ou atualiza xml
+    printf 'está disponível.\n'
+  fi
+
+  unzip -q -o -u -d /tmp $zipfile $html   # extrai o html temporariamente
+
+  [[ -e $xml ]] && tm=$(timestamp $xml) || unset tm
+
+  # MONTAGEM DO XML
+
+  # (1) substitui a primeira linha por xml prolog e tags iniciais do elemento
+  #     raiz "table" e seu first-child "tr"
+  # (2) normaliza separadores de linha, remove entity mal declarada e atributos
+  #     de elementos "tr" e "td"
+  # (3) normaliza formatos numéricos e tipo boolean
+  # (4) remove tags finais de elementos "body" e "html"
+  # (5) transforma entities literais em numéricas visando o xslt
+  sed -r '1 c\
+<?xml version="1.0"?><table><tr>
+; s/\r//g; s/&nbsp([^;])/\1/g; s/<(td|tr)[^>]+>/<\1>/g; s/\.//g; y/,/./; s/SIM/1/g; s/N\xC3O/0/g; /<\/(body|html)>/d' /tmp/$html | tidy -quiet -numeric -xml - > $xml
+
+  touch -r /tmp/$html $xml    # timestamp do xml <- timestamp do html
+
+  if [[ tm ]] && (( ! $tm < $(timestamp $xml) )); then
     # se o db existe e não foi requisitada sua reconstrução
     if [[ -e $db_file ]] && [[ $rebuild_db == false ]]; then
       k=$(xpath $count_n_xml)
@@ -227,17 +229,27 @@ if [[ $force_update == true ]] || [[ ! -e $html ]]; then
         dbrec=$(sqlite -separator "$SEP" 'SELECT * FROM concursos WHERE concurso IS (SELECT MAX(concurso) FROM concursos)')
         # extrai o último registro do xml e formata como se obtido via SQLite
         xmlrec=$(xsltproc --param OFFSET $k --stringparam SEPARATOR "$SEP" $xsl $xml | sed -r 's/([^0-9.-])0+([1-9])/\1\2/g; s/(\.[0-9])0+/\1/g; s/NULL//g')
-        # se o último registro do db não for igual ao último registro do xml
-        # então força a sincronização do db eliminando seu último registro
+        # se o último registro de concurso no db for igual ao último registro
+        # de concurso no xml então prepara o teste da lista de localidades dos
+        # ganhadores montada pelo db e da lista de localidades dos ganhadores
+        # extraída do xml via XSLT
+        if [[ $dbrec == $xmlrec ]]; then
+          dbrec=$(sqlite 'SELECT GROUP_CONCAT(IFNULL(cidade, "") || "::" || IFNULL(uf, ""), "|") FROM ganhadores WHERE concurso IS (SELECT MAX(concurso) FROM concursos)')
+          k=$(xpath $numero_ultimo_concurso)
+          xmlrec=$(xsltproc --stringparam FIELDS_SEPARATOR "::" --stringparam RECORDS_SEPARATOR "|" --param CONCURSO $k $lst $xml)
+        fi
+        # se as strings não são iguais então força a sincronização do db
+        # eliminando seu último registro
         if [[ $dbrec != $xmlrec ]]; then
           sqlite 'DELETE FROM concursos WHERE concurso IS (SELECT MAX(concurso) FROM concursos)'
         fi
       fi
     fi
   fi
+
 fi
 
-data=$(date -r $html '+%Y-%m-%d')
+data=$(date -r $xml '+%Y-%m-%d')
 printf '\nArquivo "%s" gerado em: %s.\n\n' $html "$(long_date $data)"
 n=$(xpath $count_n_xml)
 k=$(xpath $numero_ultimo_concurso)
@@ -271,7 +283,7 @@ processa_buffer() {
   [[ $2 == true ]] && sqlite 'DELETE FROM ganhadores WHERE concurso > 0'
   # preenche a tabela "ganhadores"
   sqlite ".read '$xox'" > /dev/null
-  # compara as quantidades de registros do html e do db
+  # compara as quantidades de registros do xml e do db
   m=$(sqlite $count_n_db)
   (( $n == $m )) && local status='bem' || local status='mal'
   printf '\n\n%s do db "%s" foi %s sucedida.\n' $1 $db_file $status
@@ -304,7 +316,7 @@ else  # ATUALIZAÇÃO DO DB
   else
     printf '\nNão foi necessário sincronizar o db "%s".\n' $db_file
     if (( $m > $n )); then
-      printf '\nOBSERVAÇÃO: Quantidade de registros no db > quantidade de registros no html.\n'
+      printf '\nObservação: Quantidade de registros no db > quantidade de registros no xml.\n'
     fi
   fi
 
