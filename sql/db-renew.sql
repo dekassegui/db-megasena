@@ -47,6 +47,7 @@ CREATE TRIGGER IF NOT EXISTS on_concursos_delete AFTER DELETE ON concursos BEGIN
   DELETE FROM dezenas_juntadas WHERE (concurso == old.concurso);
   DELETE FROM dezenas_sorteadas WHERE (concurso == old.concurso);
   DELETE FROM sugestoes WHERE (concurso == old.concurso);
+  DELETE FROM ganhadores WHERE (concurso == old.concurso);
 END;
 DROP TABLE IF EXISTS dezenas_juntadas;
 CREATE TABLE dezenas_juntadas (
