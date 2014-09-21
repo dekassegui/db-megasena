@@ -5,7 +5,7 @@
 
 <<'VOID_CHECKUP_REQUISITOS'
 # checa disponibilidade dos comandos utilizados neste script
-for comando in sqlite3 unzip wget xmllint xsltproc tidy
+for comando in sqlite3 unzip wget xmllint xsltproc
 do
   if ! 1>/dev/null which ${comando}; then
     [[ $comando == xmllint ]] && pacote='libxml2-utils' || pacote=$comando
@@ -203,7 +203,7 @@ if [[ $force_update == true ]] || [[ ! -e $xml ]]; then
 
   # MONTAGEM DO XML
 
-  sed -r -f scripts/xml.sed /tmp/$html | tidy -quiet -numeric -xml - > $xml
+  iconv -f latin1 -t utf8 /tmp/$html | sed -r -f scripts/xml.sed > $xml
 
   touch -r /tmp/$html $xml    # timestamp do xml <- timestamp do html
 

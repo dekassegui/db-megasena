@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="ISO-8859-1"?>
+<?xml version="1.0" encoding="UTF-8"?>
 
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
 
@@ -6,7 +6,7 @@
 
   <!-- Listagem das localidades de ganhadores da megasena por concurso. -->
 
-  <!-- número do concurso objeto da pesquisa -->
+  <!-- nÃºmero do concurso objeto da pesquisa -->
   <xsl:param name="CONCURSO"/>
 
   <!-- separador de campos dos registros -->
@@ -17,7 +17,7 @@
 
   <xsl:template name="LOCALIDADES_GANHADORES_SENA" match="/">
 
-    <!-- loop de iteração única somente para obter o contexto do elemento -->
+    <!-- loop de iteraÃ§Ã£o Ãºnica somente para obter o contexto do elemento -->
     <xsl:for-each select="//table/tr[count(td)=21][td[1]=$CONCURSO]">
 
       <xsl:variable name="numero_ganhadores" select="td[10]"/>
