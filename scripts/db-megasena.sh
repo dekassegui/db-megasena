@@ -199,24 +199,15 @@ if [[ $force_update == true ]] || [[ ! -e $xml ]]; then
 
   unzip -q -o -u -d /tmp $zipfile $html   # extrai o html temporariamente
 
-  [[ -e $xml ]] && tm=$(timestamp $xml) || unset tm
+  [[ -e $xml ]] && tm=$(timestamp $xml) || unset -v tm
 
   # MONTAGEM DO XML
 
-  # (1) substitui a primeira linha por xml prolog e tags iniciais do elemento
-  #     raiz "table" e seu first-child "tr"
-  # (2) normaliza separadores de linha, remove entity mal declarada e atributos
-  #     de elementos "tr" e "td"
-  # (3) normaliza formatos numéricos e tipo boolean
-  # (4) remove tags finais de elementos "body" e "html"
-  # (5) transforma entities literais em numéricas visando o xslt
-  sed -r '1 c\
-<?xml version="1.0"?><table><tr>
-; s/\r//g; s/&nbsp([^;])/\1/g; s/<(td|tr)[^>]+>/<\1>/g; s/\.//g; y/,/./; s/SIM/1/g; s/N\xC3O/0/g; /<\/(body|html)>/d' /tmp/$html | tidy -quiet -numeric -xml - > $xml
+  sed -r -f scripts/xml.sed /tmp/$html | tidy -quiet -numeric -xml - > $xml
 
   touch -r /tmp/$html $xml    # timestamp do xml <- timestamp do html
 
-  if [[ tm ]] && (( ! $tm < $(timestamp $xml) )); then
+  if [[ $tm ]] && (( ! $tm < $(timestamp $xml) )); then
     # se o db existe e não foi requisitada sua reconstrução
     if [[ -e $db_file ]] && [[ $rebuild_db == false ]]; then
       k=$(xpath $count_n_xml)
