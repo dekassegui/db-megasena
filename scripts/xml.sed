@@ -12,6 +12,13 @@ s/<(td|tr)[^>]+/<\1/g
   s/\.//g; y/,/./;          # normaliza formato numérico
   s/SIM/1/; s/NÃO/0/        # normaliza valor tipo boolean
   s/>\s*(\w.+\w)\s+</>\1</  # remove espaços em branco redundantes
+  # capitaliza nomes de cidades
+  s/(td>| )([a-záé])([^< ]+)/\1\U\2\L\3/ig
+  s/ d(e|a|os?) /\L&/ig
+  # correção parcial de nome do município de São Paulo
+  />Santa Bárbara/ s/Doeste/d\d39Oeste/
+  # normaliza siglas de ufs
+  s/>[a-z]{2}</\U&/ig
 }
 # remove tags finais de elementos "body" e "html"
 /<\/(body|html)>/d
