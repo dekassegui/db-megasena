@@ -15,17 +15,26 @@
  * pela função a varias strings, pois mantém em cache cada instância compilada
  * do analisador de expressões.
  *
+ * Funções de tratamento de strings UTF-8 via glibc:
+ *
+ *    UTF8-UPPER, UTF8-LOWER
+ *
  * Dependências:
  *
  *    pacotes libsqlite3-dev e libpcre3-dev para suporte alternativo a PCRE
  *
+ *    pacote libglib2.0-dev para suporte a strings UTF-8
+ *
  * Compilação para suporte a GNU REGEX (default):
  *
- *    gcc regexp.c -Wall -fPIC -shared -lm -o regexp.so
+ *    gcc regexp.c -Wall -fPIC -shared -I/usr/include/glib-2.0 \
+ *      -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -lglib-2.0 -o regexp.so
  *
  * Compilação para suporte a PCRE:
  *
- *    gcc regexp.c -Wall -fPIC -shared -lm -lpcre -DPCRE -o regexp.so
+ *    gcc regexp.c -Wall -fPIC -shared -I/usr/include/glib-2.0 \
+ *      -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -lglib-2.0 -lpcre -DPCRE \
+ *      -o regexp.so
  *
  * Uso em arquivos de inicialização ou sessões interativas:
  *
@@ -41,6 +50,7 @@ SQLITE_EXTENSION_INIT1
 
 #include <stdlib.h>
 #include <string.h>
+#include <glib.h>
 
 #ifdef PCRE
 
@@ -87,7 +97,7 @@ static void regexp(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 
   str = (const char *) sqlite3_value_text(argv[1]);
   if (!str) {
-    sqlite3_result_error(ctx, "no string", -1);
+    sqlite3_result_int(ctx, 0);
     return ;
   }
 
@@ -377,6 +387,10 @@ static void regexp(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 
   p = (const char *) sqlite3_value_text(argv[0]);
   z = (const char *) sqlite3_value_text(argv[1]);
+  if (!z) {
+    sqlite3_result_int(ctx, 0);
+    return ;
+  }
 
   exp = sqlite3_get_auxdata(ctx, 0);
   if (!exp) {
@@ -414,6 +428,10 @@ static void iregexp(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 
   p = (const char *) sqlite3_value_text(argv[0]);
   z = (const char *) sqlite3_value_text(argv[1]);
+  if (!z) {
+    sqlite3_result_int(ctx, 0);
+    return ;
+  }
 
   exp = sqlite3_get_auxdata(ctx, 0);
   if (!exp) {
@@ -601,6 +619,32 @@ static void regexp_version_info(sqlite3_context *ctx, int argc, sqlite3_value **
   sqlite3_free(z);
 }
 
+/** Converte caractéres unicode da string para maiúsculas se possível. */
+static void utf8_upper(sqlite3_context *ctx, int argc, sqlite3_value **argv)
+{
+  char *rz;
+  char *str = (char *) sqlite3_value_text(argv[0]);
+  if (!str) {
+    sqlite3_result_null(ctx);
+  } else {
+    rz = (char *) g_utf8_strup(str, -1);
+    sqlite3_result_text(ctx, rz, -1, SQLITE_TRANSIENT);
+  }
+}
+
+/** Converte caractéres unicode da string para minúsculas se possível. */
+static void utf8_lower(sqlite3_context *ctx, int argc, sqlite3_value **argv)
+{
+  char *rz;
+  char *str = (char *) sqlite3_value_text(argv[0]);
+  if (!str) {
+    sqlite3_result_null(ctx);
+  } else {
+    rz = (char *) g_utf8_strdown(str, -1);
+    sqlite3_result_text(ctx, rz, -1, SQLITE_TRANSIENT);
+  }
+}
+
 int sqlite3_extension_init(sqlite3 *db, char **err, const sqlite3_api_routines *api)
 {
   SQLITE_EXTENSION_INIT2(api)
@@ -612,7 +656,9 @@ int sqlite3_extension_init(sqlite3 *db, char **err, const sqlite3_api_routines *
 #endif
   sqlite3_create_function(db, "REGEXP_MATCH", 2, SQLITE_UTF8, NULL, regexp_match, NULL, NULL);
   sqlite3_create_function(db, "REGEXP_MATCH_COUNT", 2, SQLITE_UTF8, NULL, regexp_match_count, NULL, NULL);
-  sqlite3_create_function(db, "REGEXP_MATCH_POSITION",  3, SQLITE_UTF8, NULL, regexp_match_position, NULL, NULL);
+  sqlite3_create_function(db, "REGEXP_MATCH_POSITION", 3, SQLITE_UTF8, NULL, regexp_match_position, NULL, NULL);
+  sqlite3_create_function(db, "UTF8_UPPER", 1, SQLITE_UTF8, NULL, utf8_upper, NULL, NULL);
+  sqlite3_create_function(db, "UTF8_LOWER", 1, SQLITE_UTF8, NULL, utf8_lower, NULL, NULL);
 
   return 0;
 }
