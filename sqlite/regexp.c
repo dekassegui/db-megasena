@@ -1,7 +1,7 @@
-/*
+/**
  * Expressões Regulares no SQLite:
  *
- *    REGEXP_VERSION_INFO, REGEXP, IREGEXP (somente no GNU REGEX), REGEXP_MATCH,
+ *    REGEXP_VERSION, REGEXP, IREGEXP (somente no GNU REGEX), REGEXP_MATCH,
  *    REGEXP_MATCH_COUNT, REGEXP_MATCH_POSITION
  *
  * Há suporte ao "GNU Regular Expressions" aka GNU REGEX conforme documentado em
@@ -17,13 +17,15 @@
  *
  * Funções de tratamento de strings UTF-8 via glibc:
  *
- *    UTF8-UPPER, UTF8-LOWER
+ *    UTF8_UPPER, UTF8_LOWER
  *
  * Dependências:
  *
- *    pacotes libsqlite3-dev e libpcre3-dev para suporte alternativo a PCRE
+ *    "libsqlite3-dev" essencial para desenvolvimento de extensões SQLite
  *
- *    pacote libglib2.0-dev para suporte a strings UTF-8
+ *    "libpcre3-dev" para suporte alternativo a PCRE
+ *
+ *    "libglib2.0-dev" para suporte a strings UTF-8
  *
  * Compilação para suporte a GNU REGEX (default):
  *
@@ -70,17 +72,17 @@ static void release_cache_entry_t(void *ptr)
   sqlite3_free(ptr);
 }
 
-/*
+/**
  * Testa se alguma substring da string alvo corresponde a uma expressão regular
- * em conformidade com o padrão Perl Compatible Regular Expressions (aka PCRE).
- *
- * O primeiro argumento deve ser a expressão regular e a string alvo da pesquisa
- * o segundo.
- *
- * O valor retornado é um inteiro tal que; sucesso é 1 e fracasso é 0.
+ * em conformidade com o Perl Compatible Regular Expressions (aka PCRE).
  *
  * Importante: A função supre o operador REGEXP mencionado na documentação
  *             do SQLite, tal que a expressão regular é o segundo operando.
+ *
+ * @param A expressão regular pesquisada.
+ * @param A string alvo da pesquisa.
+ *
+ * @return Valor inteiro tal que; sucesso é 1 e fracasso é 0.
 */
 static void regexp(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
@@ -138,12 +140,14 @@ static void regexp(sqlite3_context *ctx, int argc, sqlite3_value **argv)
   }
 }
 
-/*
- * Retorna a primeira substring da string pesquisada que corresponder à
- * expressão regular ou NULL se a pesquisa for mal sucedida.
+/**
+ * Pesquisa substrings identificadas pela expressão regular numa string alvo.
  *
- * O primeiro argumento deve ser a expressão regular e a string alvo da
- * pesquisa o segundo.
+ * @param A expressão regular pesquisada.
+ * @param A string alvo da pesquisa.
+ *
+ * @return A primeira substring identificada ou NULL se a pesquisa for
+ *         mal sucedida ou a string alvo é NULL.
 */
 static void regexp_match(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
@@ -161,7 +165,7 @@ static void regexp_match(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 
   str = (char *) sqlite3_value_text(argv[1]);
   if (!str) {
-    sqlite3_result_error(ctx, "no string", -1);
+    sqlite3_result_null(ctx);
     return ;
   }
 
@@ -191,12 +195,10 @@ static void regexp_match(sqlite3_context *ctx, int argc, sqlite3_value **argv)
   }
 
   r = pcre_exec(c->p, c->e, str, strlen(str), 0, 0, ovector, 6);
-  if (r >= 0)
-  {
+  if (r >= 0) {
     *(str + ovector[1]) = '\0';
     sqlite3_result_text(ctx, str+ovector[0], -1, SQLITE_TRANSIENT);
-  } else
-  {
+  } else {
     switch (r) {
       case PCRE_ERROR_NOMATCH:
       case PCRE_ERROR_NULL:
@@ -211,12 +213,14 @@ static void regexp_match(sqlite3_context *ctx, int argc, sqlite3_value **argv)
   }
 }
 
-/*
- * Retorna o número de substrings da string pesquisada que corresponderem à
- * expressão regular.
+/**
+ * Pesquisa substrings identificadas pela expressão regular numa string alvo.
  *
- * O primeiro argumento deve ser a expressão regular e a string alvo da pesquisa
- * o segundo.
+ * @param A expressão regular pesquisada.
+ * @param A string alvo da pesquisa.
+ *
+ * @return A quantidade de substrings identificadas ou -1 se a string alvo é
+ *         NULL.
 */
 static void regexp_match_count(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
@@ -235,7 +239,7 @@ static void regexp_match_count(sqlite3_context *ctx, int argc, sqlite3_value **a
 
   str = (const char *) sqlite3_value_text(argv[1]);
   if (!str) {
-    sqlite3_result_error(ctx, "no string", -1);
+    sqlite3_result_int(ctx, -1);
     return ;
   }
 
@@ -278,15 +282,17 @@ static void regexp_match_count(sqlite3_context *ctx, int argc, sqlite3_value **a
   }
 }
 
-/*
- * Retorna a posição, offset em bytes, de uma das substring que correspondem à
- * expressão regular conforme seu número de ordem.
+/**
+ * Pesquisa substring identificada pela expressão regular numa string alvo, com
+ * com número de ordem específico.
  *
- * Se o número de ordem for menor igual a 0 ou maior que o número de substrings
- * identificadas será retornado -1.
+ * @param A expressão regular pesquisada.
+ * @param A string alvo da pesquisa.
+ * @param O número de ordem da substring a identificar.
  *
- * O primeiro argumento deve ser a expressão regular, a string alvo da pesquisa
- * o segundo e o número de ordem da substring o terceiro.
+ * @return A posição i.e.; offset em bytes, da substring identificada e se a
+ *         string alvo é NULL ou o número de ordem for menor igual a 0 ou maior
+ *         que o número de substrings identificadas será retornado -1.
 */
 static void regexp_match_position(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
@@ -305,7 +311,7 @@ static void regexp_match_position(sqlite3_context *ctx, int argc, sqlite3_value 
 
   str = (const char *) sqlite3_value_text(argv[1]);
   if (!str) {
-    sqlite3_result_error(ctx, "no string", -1);
+    sqlite3_result_int(ctx, -1);
     return ;
   }
 
@@ -363,20 +369,21 @@ static void regexp_match_position(sqlite3_context *ctx, int argc, sqlite3_value 
 
 #include <regex.h>
 
-/*
+/**
  * Testa se alguma substring da string alvo corresponde a uma expressão regular
- * em conformidade com o padrão GNU Regular Expressions no modo Extended.
- * A expressão regular trata letras maiúsculas como diferentes de minúsculas,
- * caracteres Unicode devem ser declarados explicitamente e se a expressão
- * regular for mal formada, será mostrada a mensagem de erro correspondente.
- *
- * O primeiro argumento deve ser a expressão regular e a string alvo da pesquisa
- * o segundo.
- *
- * O valor retornado é um inteiro tal que; sucesso é 1 e fracasso é 0.
+ * em conformidade com o GNU Regular Expressions no modo Extended, considerando
+ * letras maiúsculas como diferentes de minúsculas.
+ * Nas expressões regulares, os caracteres Unicode devem ser declarados
+ * explicitamente e se a expressão for mal formada, será mostrada a mensagem de
+ * erro correspondente.
  *
  * Importante: A função supre o operador REGEXP mencionado na documentação
  *             do SQLite, tal que a expressão regular é o segundo operando.
+ *
+ * @param A expressão regular pesquisada.
+ * @param A string alvo da pesquisa.
+ *
+ * @return Valor inteiro tal que; sucesso é 1 e fracasso é 0.
 */
 static void regexp(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
@@ -415,9 +422,18 @@ static void regexp(sqlite3_context *ctx, int argc, sqlite3_value **argv)
   sqlite3_result_int(ctx, r == 0);
 }
 
-/*
- * Conforme anterior, porém não trata letras maiúsculas como diferentes de
- * minúsculas.
+/**
+ * Testa se alguma substring da string alvo corresponde a uma expressão regular
+ * em conformidade com o GNU Regular Expressions no modo Extended, indiferente
+ * ao uso de letras maiúsculas e minúsculas.
+ * Nas expressões regulares, os caracteres Unicode devem ser declarados
+ * explicitamente e se a expressão for mal formada, será mostrada a mensagem de
+ * erro correspondente.
+ *
+ * @param A expressão regular pesquisada.
+ * @param A string alvo da pesquisa.
+ *
+ * @return Valor inteiro tal que; sucesso é 1 e fracasso é 0.
 */
 static void iregexp(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
@@ -458,12 +474,14 @@ static void iregexp(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 
 #define MAX_MATCHES 1 /* número máximo de identificações numa string qualquer */
 
-/*
- * Retorna a primeira substring da string pesquisada que corresponder à
- * expressão regular, que pode ser uma string vazia em caso de fracasso.
+/**
+ * Pesquisa substrings identificadas pela expressão regular numa string alvo.
  *
- * O primeiro argumento deve ser a expressão regular e a string alvo da pesquisa
- * o segundo.
+ * @param A expressão regular pesquisada.
+ * @param A string alvo da pesquisa.
+ *
+ * @return A primeira substring identificada ou NULL se a pesquisa for
+ *         mal sucedida ou a string alvo é NULL.
 */
 static void regexp_match(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
@@ -475,6 +493,10 @@ static void regexp_match(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 
   p = (const char *) sqlite3_value_text(argv[0]);
   z = (const char *) sqlite3_value_text(argv[1]);
+  if (!z) {
+    sqlite3_result_null(ctx);
+    return ;
+  }
 
   exp = sqlite3_get_auxdata(ctx, 0);
   if (!exp) {
@@ -506,12 +528,14 @@ static void regexp_match(sqlite3_context *ctx, int argc, sqlite3_value **argv)
   }
 }
 
-/*
- * Retorna o número de substrings da string pesquisada que corresponderem à
- * expressão regular.
+/**
+ * Pesquisa substrings identificadas pela expressão regular numa string alvo.
  *
- * O primeiro argumento deve ser a expressão regular e a string alvo da pesquisa
- * o segundo.
+ * @param A expressão regular pesquisada.
+ * @param A string alvo da pesquisa.
+ *
+ * @return A quantidade de substrings identificadas ou -1 se a string alvo é
+ *         NULL.
 */
 static void regexp_match_count(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
@@ -523,6 +547,10 @@ static void regexp_match_count(sqlite3_context *ctx, int argc, sqlite3_value **a
 
   p = (char *) sqlite3_value_text(argv[0]);
   z = (char *) sqlite3_value_text(argv[1]);
+  if (!z) {
+    sqlite3_result_int(ctx, -1);
+    return ;
+  }
 
   exp = sqlite3_get_auxdata(ctx, 0);
   if (!exp) {
@@ -552,14 +580,17 @@ static void regexp_match_count(sqlite3_context *ctx, int argc, sqlite3_value **a
   sqlite3_result_int(ctx, v);
 }
 
-/*
- * Retorna a posição de uma das substring que correspondem à expressão regular.
+/**
+ * Pesquisa substring identificada pela expressão regular numa string alvo, com
+ * com número de ordem específico.
  *
- * O primeiro argumento deve ser a expressão regular, a string alvo da pesquisa
- * o segundo e o número de ordem da substring o terceiro.
+ * @param A expressão regular pesquisada.
+ * @param A string alvo da pesquisa.
+ * @param O número de ordem da substring a identificar.
  *
- * Se o número de ordem for 0 ou maior que o número de substrings identificadas
- * então será retornado o valor inteiro -1.
+ * @return A posição i.e.; offset em bytes, da substring identificada e se a
+ *         string alvo é NULL ou o número de ordem for menor igual a 0 ou maior
+ *         que o número de substrings identificadas será retornado -1.
 */
 static void regexp_match_position(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
@@ -571,6 +602,10 @@ static void regexp_match_position(sqlite3_context *ctx, int argc, sqlite3_value 
 
   p = (const char *) sqlite3_value_text(argv[0]);
   z = (const char *) sqlite3_value_text(argv[1]);
+  if (!z) {
+    sqlite3_result_int(ctx, -1);
+    return ;
+  }
   group = sqlite3_value_int(argv[2]);
 
   exp = sqlite3_get_auxdata(ctx, 0);
@@ -605,8 +640,10 @@ static void regexp_match_position(sqlite3_context *ctx, int argc, sqlite3_value 
 
 #endif /* GNU Regex */
 
-/* Informa a marca e versão da API de expressões regulares. */
-static void regexp_version_info(sqlite3_context *ctx, int argc, sqlite3_value **argv)
+/**
+ * @return String contendo a marca e versão da API de expressões regulares.
+*/
+static void regexp_version(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
   char *z = sqlite3_mprintf(
 #ifdef _PCRE_H
@@ -619,7 +656,14 @@ static void regexp_version_info(sqlite3_context *ctx, int argc, sqlite3_value **
   sqlite3_free(z);
 }
 
-/** Converte caractéres unicode da string para maiúsculas se possível. */
+/**
+ * Converte caractéres minúsculos de string em maiúsculos, inclusive caractéres
+ * Unicode quando possível, usando o "locale" do sistema.
+ *
+ * @param A string a ser modificada.
+ *
+ * @return A string modificada ou NULL se o argumento é NULL.
+*/
 static void utf8_upper(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
   char *rz;
@@ -632,7 +676,14 @@ static void utf8_upper(sqlite3_context *ctx, int argc, sqlite3_value **argv)
   }
 }
 
-/** Converte caractéres unicode da string para minúsculas se possível. */
+/**
+ * Converte caractéres maiúsculos da string em minúsculos, inclusive caractéres
+ * Unicode quando possível, usando o "locale" do sistema.
+ *
+ * @param A string a ser modificada.
+ *
+ * @return A string modificada ou NULL se o argumento é NULL.
+*/
 static void utf8_lower(sqlite3_context *ctx, int argc, sqlite3_value **argv)
 {
   char *rz;
@@ -649,7 +700,7 @@ int sqlite3_extension_init(sqlite3 *db, char **err, const sqlite3_api_routines *
 {
   SQLITE_EXTENSION_INIT2(api)
 
-  sqlite3_create_function(db, "REGEXP_VERSION_INFO",  0, SQLITE_UTF8, NULL, regexp_version_info, NULL, NULL);
+  sqlite3_create_function(db, "REGEXP_VERSION", 0, SQLITE_UTF8, NULL, regexp_version, NULL, NULL);
   sqlite3_create_function(db, "REGEXP", 2, SQLITE_UTF8, NULL, regexp, NULL, NULL);
 #ifdef _REGEX_H
   sqlite3_create_function(db, "IREGEXP", 2, SQLITE_UTF8, NULL, iregexp, NULL, NULL);
