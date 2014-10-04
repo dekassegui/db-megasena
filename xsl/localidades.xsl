@@ -30,7 +30,14 @@
         <xsl:value-of select="td[11]"/><xsl:value-of select="$FIELDS_SEPARATOR"/><xsl:value-of select="td[12]"/>
 
         <xsl:for-each select="//table/tr[position()&gt;$offset and position()&lt;$upper]">
-          <xsl:value-of select="$RECORDS_SEPARATOR"/><xsl:value-of select="td[1]"/><xsl:value-of select="$FIELDS_SEPARATOR"/><xsl:value-of select="td[2]"/>
+          <xsl:choose>
+            <xsl:when test="count(td)=2">
+              <xsl:value-of select="$RECORDS_SEPARATOR"/><xsl:value-of select="td[1]"/><xsl:value-of select="$FIELDS_SEPARATOR"/><xsl:value-of select="td[2]"/>
+            </xsl:when>
+            <xsl:otherwise>
+              <xsl:value-of select="$RECORDS_SEPARATOR"/><xsl:value-of select="$FIELDS_SEPARATOR"/>
+            </xsl:otherwise>
+          </xsl:choose>
         </xsl:for-each>
 
       </xsl:if>

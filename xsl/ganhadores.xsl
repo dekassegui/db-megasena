@@ -24,7 +24,14 @@
 
       <!-- imprime dados dos demais ganhadores se houverem -->
       <xsl:for-each select="//table/tr[position()&gt;$offset and position()&lt;$upper]">
-        <xsl:value-of select="$concurso"/><xsl:value-of select="$SEPARATOR"/><xsl:value-of select="td[1]"/><xsl:value-of select="$SEPARATOR"/><xsl:value-of select="td[2]"/><xsl:text>&#xA;</xsl:text>
+        <xsl:choose>
+          <xsl:when test="count(td)=2">
+            <xsl:value-of select="$concurso"/><xsl:value-of select="$SEPARATOR"/><xsl:value-of select="td[1]"/><xsl:value-of select="$SEPARATOR"/><xsl:value-of select="td[2]"/><xsl:text>&#xA;</xsl:text>
+          </xsl:when>
+          <xsl:otherwise>
+            <xsl:value-of select="$concurso"/><xsl:value-of select="$SEPARATOR"/><xsl:value-of select="$SEPARATOR"/><xsl:text>&#xA;</xsl:text>
+          </xsl:otherwise>
+        </xsl:choose>
       </xsl:for-each>
 
     </xsl:for-each>

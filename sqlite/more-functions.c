@@ -1,13 +1,15 @@
 /*
- * Math: power
+ * Math: POWER
  *
- * String: reverse, zeropad
+ * Math aggregation: PRODUCT
  *
- * Bitwise: int2bin, bitstatus
+ * String: REVERSE, ZEROPAD, PRINTF, CURRENCY
  *
- * Bitwise aggregation: group_bitor, group_ndxbitor
+ * Bitwise: INT2BIN, BITSTATUS
  *
- * Miscellaneous: mask60, quadrante, rownum
+ * Bitwise aggregation: GROUP_BITOR, GROUP_NDXBITOR
+ *
+ * Miscellaneous: MASK60, QUADRANTE, ROWNUM
  *
  * Compile: gcc more-functions.c -fPIC -shared -lm -o more-functions.so
  *
@@ -26,6 +28,8 @@ SQLITE_EXTENSION_INIT1
 #include <assert.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <locale.h>
 
 typedef uint8_t   u8;
 typedef uint16_t  u16;
@@ -59,6 +63,31 @@ static void powerFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
       sqlite3_result_error(context, strerror(errno), errno);
     }
   }
+}
+
+/* estrutura de contexto Produtorio */
+typedef struct ProductCtx ProductCtx;
+struct ProductCtx {
+  double rB;
+};
+
+static void group_productStep(sqlite3_context *context, int argc, sqlite3_value **argv)
+{
+  ProductCtx *p;
+  double value = 0;
+  assert( 1 == argc );
+  p = sqlite3_aggregate_context(context, sizeof(*p));
+  value = sqlite3_value_double(argv[0]);
+  p->rB += log(value);
+}
+
+static void group_productFinalize(sqlite3_context *context)
+{
+  ProductCtx *p;
+  double value = 0;
+  p = sqlite3_aggregate_context(context, 0);
+  value = exp(p->rB);
+  sqlite3_result_double(context, value);
 }
 
 #include <limits.h>
@@ -412,6 +441,61 @@ static void zeropadFunc(sqlite3_context *context, int argc, sqlite3_value **argv
   sqlite3_free(z);
 }
 
+/**
+ * Experimental "printf" like function for a single value.
+ *
+ * @param String format.
+ * @param Value of type int, double or text.
+ *
+ * @return The formated value as string.
+*/
+static void printfFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
+{
+  char *z;
+
+  const char *format = (const char *) sqlite3_value_text(argv[0]);
+
+  switch( sqlite3_value_type(argv[1]) ) {
+    case SQLITE_INTEGER: {
+      z = sqlite3_mprintf(format, sqlite3_value_int64(argv[1]));
+      break;
+    }
+    case SQLITE_FLOAT: {
+      z = sqlite3_mprintf(format, sqlite3_value_double(argv[1]));
+      break;
+    }
+    case SQLITE3_TEXT: {
+      z = sqlite3_mprintf(format, sqlite3_value_text(argv[1]));
+      break;
+    }
+    case SQLITE_NULL: {
+      sqlite3_result_null(context);
+      return;
+    }
+  }
+  sqlite3_result_text(context, z, -1, SQLITE_TRANSIENT);
+  sqlite3_free(z);
+}
+
+/**
+ * Experimental function to format a number as currency.
+ *
+ * @param Numeric value of type int or double.
+ *
+ * @return The formated value as currency.
+*/
+static void currencyFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
+{
+  double value = sqlite3_value_double(argv[0]);
+  char *t, *z = (char *) sqlite3_malloc(30);
+  (void) setlocale(LC_ALL, "");
+  (void) sprintf(z, "%'f", value);
+  t = strchr(z, ',');
+  if (t) *(t+3)='\0';
+  sqlite3_result_text(context, z, -1, SQLITE_TRANSIENT);
+  sqlite3_free(z);
+}
+
 /*
  * The ROWNUM code was borrowed from: http://sqlite.1065341.n5.nabble.com/sequential-row-numbers-from-query-td47370.html
 */
@@ -481,6 +565,9 @@ int RegisterExtensionFunctions(sqlite3 *db)
 
     { "rownum",             1, 0, SQLITE_UTF8,    0, rownumFunc },
 
+    { "printf",             2, 0, SQLITE_UTF8,    0, printfFunc },
+    { "currency",           1, 0, SQLITE_UTF8,    0, currencyFunc },
+
   };
 
   /* Aggregate functions */
@@ -495,6 +582,7 @@ int RegisterExtensionFunctions(sqlite3 *db)
 
     { "group_bitor",      1, 0, 0, group_bitorStep, group_bitorFinalize },
     { "group_ndxbitor",   1, 0, 0, group_ndxbitorStep, group_bitorFinalize },
+    { "product",          1, 0, 0, group_productStep, group_productFinalize },
 
   };
 

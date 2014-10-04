@@ -271,7 +271,7 @@ processa_buffer() {
   # preenche ou completa a tabela "concursos"
   sqlite ".read $data_load" > /dev/null
   # esvazia a tabela "ganhadores" se não houve criação/regeneração do db
-  [[ $2 == true ]] && sqlite 'DELETE FROM ganhadores WHERE concurso > 0'
+  [[ $2 == true ]] && sqlite 'DELETE FROM ganhadores'
   # preenche a tabela "ganhadores"
   sqlite ".read '$xox'" > /dev/null
   # compara as quantidades de registros do xml e do db
