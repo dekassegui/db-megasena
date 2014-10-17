@@ -441,59 +441,154 @@ static void zeropadFunc(sqlite3_context *context, int argc, sqlite3_value **argv
   sqlite3_free(z);
 }
 
+#if SQLITE_VERSION_NUMBER < 3008003
+
+#define SUBSTR(s, t, n) { \
+    s = sqlite3_malloc((n)+1); \
+    if (s == NULL) { \
+      sqlite3_result_error_nomem(context); \
+    } else { \
+      memcpy(s, (t), (n)); \
+      s[(n)] = '\0'; \
+    } \
+  }
+
+#define APPEND(s, t) { \
+    if (s == NULL) { \
+      s = t; \
+    } else { \
+      s = sqlite3_realloc(s, strlen(s) + strlen(t) + 1); \
+      if (s == NULL) { \
+        sqlite3_result_error_nomem(context); \
+      } else { \
+        strcat(s, t); \
+        sqlite3_free(t); \
+      } \
+    } \
+  }
+
+#define ISDIGIT(c) ((c) >= '0' && (c) <= '9')
+
 /**
- * Experimental "printf" like function for a single value.
+ * "PRINTF" like function via métodos contextuais e glibc.
  *
- * @param String format.
- * @param Value of type int, double or text.
+ * @param String dos formatos combinados.
+ * @param Zero ou mais valores do tipo inteiro, real ou texto/char.
  *
- * @return The formated value as string.
+ * @return String resultante da formatação.
 */
 static void printfFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
 {
-  char *z;
+  const char *q, *p;
+  char *fmt, *z, *r = NULL;
+  int j, i = 0, binding = 0;
 
-  const char *format = (const char *) sqlite3_value_text(argv[0]);
+  if (argc == 0) {
+    sqlite3_result_error(context, "nenhum argumento a processar.", -1);
+    return;
+  }
 
-  switch( sqlite3_value_type(argv[1]) ) {
-    case SQLITE_INTEGER: {
-      z = sqlite3_mprintf(format, sqlite3_value_int64(argv[1]));
-      break;
-    }
-    case SQLITE_FLOAT: {
-      z = sqlite3_mprintf(format, sqlite3_value_double(argv[1]));
-      break;
-    }
-    case SQLITE3_TEXT: {
-      z = sqlite3_mprintf(format, sqlite3_value_text(argv[1]));
-      break;
-    }
-    case SQLITE_NULL: {
-      sqlite3_result_null(context);
-      return;
+  q = p = (const char *) sqlite3_value_text(argv[0]);   // formatos combinados
+
+  // percorre a string dos formatos combinados que são extraídos
+  // e aplicados a respectivos argumentos
+  for (--argc; (argc > 0) && (*p != '\0'); ++p) {
+    if (*p == '%') {
+      if (q == p) {
+        binding = 1;  // inicio de algum formato
+      } else {
+        SUBSTR(z, q + binding, p-q);  // água de salsicha
+        APPEND(r, z);
+        q = p + binding;      // reposiciona ponteiro baliza
+        binding = !binding;   // alterna inicio/fim de algum formato
+      }
+    } else if (binding && strchr("xXdefgsc", *p) != NULL) {
+      // checa se o argumento não é nulo
+      if (sqlite3_value_type(argv[++i]) != SQLITE_NULL) {
+        // extrai algum formato entre os ponteiros baliza e sonda
+        SUBSTR(fmt, q, p-q+1);
+        // obtem a string resultante da formatação
+        switch (*p) {
+          case 'x':
+          case 'X':
+          case 'd':
+            z = sqlite3_mprintf(fmt, sqlite3_value_int64(argv[i]));
+            break;
+          case 's':
+            z = sqlite3_mprintf(fmt, sqlite3_value_text(argv[i]));
+            break;
+          case 'c':
+            if (sqlite3_value_type(argv[i]) == SQLITE_INTEGER) {
+              j = sqlite3_value_int(argv[i]);
+            } else {
+              j = sqlite3_value_text(argv[i])[0];
+            }
+            z = sqlite3_mprintf(fmt, j);
+            break;
+          case 'f':
+            if (fmt[1] == 0x27) { // adiciona pontuação conforme "locale"...
+              double valor = sqlite3_value_double(argv[i]);
+              // tenta obter a quantidade mínima de caracteres da string
+              // resultante da formatação, com valor default 29
+              int k = 2;
+              while (fmt[k] != '\0' && fmt[k] != '.' && !ISDIGIT(fmt[k])) ++k;
+              for (j=0; ISDIGIT(fmt[k]); ++k) j = 10 * j + fmt[k] - '0';
+              if (j == 0) j = 29;
+              z = sqlite3_malloc(++j);  // storage a priori
+              if (z == NULL) sqlite3_result_error_nomem(context);
+              k = snprintf(z, j, fmt, valor);
+              if (k >= j) {
+                z = sqlite3_realloc(z, k+1);  // ajusta o storage
+                if (z == NULL) sqlite3_result_error_nomem(context);
+                sprintf(z, fmt, valor);
+              }
+              break;
+            }
+          default:
+            z = sqlite3_mprintf(fmt, sqlite3_value_double(argv[i]));
+        }
+        APPEND(r, z);       // r <- r + z
+        sqlite3_free(fmt);
+      }
+      --argc;       // decrementa a quantidade de argumentos pendentes
+      q = p + 1;    // reposiciona ponteiro baliza
+      binding = 0;  // fim de algum formato
     }
   }
-  sqlite3_result_text(context, z, -1, SQLITE_TRANSIENT);
-  sqlite3_free(z);
+
+  if (*q != '\0') {
+    SUBSTR(z, q, strlen(q));  // água de salsicha
+    APPEND(r, z);
+  }
+
+  sqlite3_result_text(context, r, -1, SQLITE_TRANSIENT);
+  sqlite3_free(r);
 }
 
+#endif
+
 /**
- * Experimental function to format a number as currency.
+ * Formata número como valor monetário usando a glibc.
  *
- * @param Numeric value of type int or double.
+ * @param Valor numérico do tipo INTEGER ou DOUBLE.
  *
- * @return The formated value as currency.
+ * @return String do valor formatado ou NULL se o argumento for NULL.
 */
 static void currencyFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
 {
-  double value = sqlite3_value_double(argv[0]);
-  char *t, *z = (char *) sqlite3_malloc(30);
-  (void) setlocale(LC_ALL, "");
-  (void) sprintf(z, "%'f", value);
-  t = strchr(z, ',');
-  if (t) *(t+3)='\0';
-  sqlite3_result_text(context, z, -1, SQLITE_TRANSIENT);
-  sqlite3_free(z);
+  char *z;
+  if (sqlite3_value_type(argv[0]) <= SQLITE_FLOAT) { // int or double
+    z = sqlite3_malloc(30);
+    if (z == NULL) sqlite3_result_error_nomem(context);
+    // adiciona pontuação conforme "locale" do sistema
+    sprintf(z, "%'.2f", sqlite3_value_double(argv[0]));
+    sqlite3_result_text(context, z, -1, SQLITE_TRANSIENT);
+    sqlite3_free(z);
+  } else if (sqlite3_value_type(argv[0]) == SQLITE_NULL) {
+    sqlite3_result_null(context);
+  } else {
+    sqlite3_result_error(context, "invalid type", -1);
+  }
 }
 
 /*
@@ -564,8 +659,9 @@ int RegisterExtensionFunctions(sqlite3 *db)
     { "quadrante",          1, 0, SQLITE_UTF8,    0, quadranteFunc },
 
     { "rownum",             1, 0, SQLITE_UTF8,    0, rownumFunc },
-
-    { "printf",             2, 0, SQLITE_UTF8,    0, printfFunc },
+#if SQLITE_VERSION_NUMBER < 3008003
+    { "printf",            -1, 0, SQLITE_UTF8,    0, printfFunc },
+#endif
     { "currency",           1, 0, SQLITE_UTF8,    0, currencyFunc },
 
   };
@@ -636,6 +732,7 @@ int sqlite3_extension_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routi
 {
   SQLITE_EXTENSION_INIT2(pApi);
   RegisterExtensionFunctions(db);
+  (void) setlocale(LC_ALL, "");
   return 0;
 }
 #endif /* COMPILE_SQLITE_EXTENSIONS_AS_LOADABLE_MODULE */

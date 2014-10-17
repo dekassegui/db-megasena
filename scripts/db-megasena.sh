@@ -181,7 +181,7 @@ if [[ $force_update == true ]] || [[ ! -e $xml ]]; then
 
   # realiza o download do zipfile remoto se mais recente que o localmente
   # disponível ou se ainda não existir
-  wget -o wget.log --timestamping $url
+  wget -o wget.log --no-cache --timestamping $url
 
   # termina a execução do script se o zipfile não está disponível
   if [[ ! -e $zipfile ]]; then
