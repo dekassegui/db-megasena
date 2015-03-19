@@ -1,13 +1,13 @@
 #!/usr/bin/Rscript --slave --no-restore
 
 library(RSQLite)
-con <- sqliteNewConnection(dbDriver('SQLite'), dbname='megasena.sqlite')
+con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
 rs <- dbSendQuery(con, 'SELECT dezena FROM dezenas_sorteadas')
 datum <- fetch(rs, n = -1)
 
 dbClearResult(rs)
-sqliteCloseConnection(con)
+dbDisconnect(con)
 
 nrecs <- length(datum$dezena) / 6;
 

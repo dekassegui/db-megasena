@@ -1,7 +1,7 @@
 #!/usr/bin/Rscript
 
 library(RSQLite)
-con <- sqliteNewConnection(dbDriver('SQLite'), dbname='megasena.sqlite')
+con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
 rs <- dbSendQuery(con, paste(
     'SELECT acumulado, 6-SUM(dezena % 2) AS even',
@@ -10,7 +10,7 @@ rs <- dbSendQuery(con, paste(
 datum <- fetch(rs, n = -1)
 
 dbClearResult(rs)
-sqliteCloseConnection(con)
+dbDisconnect(con)
 
 cat('Montagem da tabela de contingência:\n\n')
 tabela <- table(datum)

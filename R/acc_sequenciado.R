@@ -1,7 +1,7 @@
 #!/usr/bin/Rscript
 
 library(RSQLite)
-con <- sqliteNewConnection(drv <- dbDriver('SQLite'), dbname='megasena.sqlite', loadable.extensions=TRUE)
+con <- dbConnect(SQLite(), dbname='megasena.sqlite', loadable.extensions=TRUE)
 dbGetQuery(con, 'SELECT LOAD_EXTENSION("./sqlite/more-functions.so")')
 
 rs <- dbGetQuery(con, 'SELECT COUNT(concurso) FROM concursos')
@@ -19,7 +19,7 @@ rs <- dbGetQuery(con, paste(
   '(SELECT COUNT(*) FROM t WHERE NOT acumulado AND sequenciado),',
   '(SELECT COUNT(*) FROM t WHERE NOT acumulado AND NOT sequenciado)'))
 
-sqliteCloseConnection(con)
+dbDisconnect(con)
 
 m <- matrix(as.integer(rs[1:4]), ncol=2, byrow=TRUE)
 dimnames(m) <- list(' acumulado'=c('sim','não'), sequenciado=c('sim','não'))

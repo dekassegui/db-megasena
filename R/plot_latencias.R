@@ -1,7 +1,7 @@
 #!/usr/bin/Rscript
 
 library(RSQLite, quietly=TRUE)
-con <- sqliteNewConnection(dbDriver('SQLite'), dbname='megasena.sqlite')
+con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
 rs <- dbSendQuery(con, 'SELECT max(concurso) as NREC FROM concursos')
 nrec <- fetch(rs, n = -1)$NREC
@@ -10,7 +10,7 @@ rs <- dbSendQuery(con, 'SELECT latencia FROM info_dezenas')
 datum <- fetch(rs, n = -1)
 
 dbClearResult(rs)
-sqliteCloseConnection(con)
+dbDisconnect(con)
 
 titulo = paste('Mega-Sena #', nrec, sep='')
 

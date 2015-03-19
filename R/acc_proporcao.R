@@ -1,7 +1,7 @@
 #!/usr/bin/Rscript
 
 library(RSQLite)
-con <- sqliteNewConnection(dbDriver('SQLite'), dbname='megasena.sqlite')
+con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
 rs <- dbSendQuery(con, 'SELECT COUNT(concurso) AS NREC FROM concursos')
 nrec = fetch(rs, n = -1)$NREC
@@ -12,7 +12,7 @@ rs <- dbSendQuery(con, paste(
 datum <- fetch(rs, n = -1)
 
 dbClearResult(rs)
-sqliteCloseConnection(con)
+dbDisconnect(con)
 
 rownames(datum)=' amount'
 ph = 0.8

@@ -6,7 +6,7 @@
 # valores da estatística e respectivas probabilidades a cada concurso.
 #
 library(RSQLite)
-con <- sqliteNewConnection(dbDriver('SQLite'), dbname='megasena.sqlite')
+con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
 # verifica se entre as tabelas do db há alguma cujo nome é 'fit'
 tabelas <- dbListTables(con)
@@ -126,4 +126,4 @@ legend(
 dev.off()  # finaliza o dispositivo gráfico
 
 dbClearResult(rs)
-sqliteCloseConnection(con)
+dbDisconnect(con)

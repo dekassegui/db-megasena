@@ -1,11 +1,11 @@
 #!/usr/bin/Rscript
 #
 library(RSQLite, quietly=TRUE)
-con <- sqliteNewConnection(dbDriver('SQLite'), dbname='megasena.sqlite')
+con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 rs <- dbSendQuery(con, 'SELECT uf FROM ganhadores')
 datum <- fetch(rs, n=-1)
 dbClearResult(rs)
-sqliteCloseConnection(con)
+dbDisconnect(con)
 
 tabela <- table( datum[1]$uf )
 

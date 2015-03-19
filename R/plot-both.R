@@ -4,7 +4,7 @@
 # que faz parte do relatório sobre o concurso mais recente da Mega-Sena.
 #
 library(RSQLite, quietly=TRUE)
-con <- sqliteNewConnection(dbDriver('SQLite'), dbname='megasena.sqlite')
+con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
 rs <- dbSendQuery(con, 'SELECT dezena FROM dezenas_sorteadas')
 datum <- fetch(rs, n = -1)
@@ -60,7 +60,7 @@ rs <- dbSendQuery(con, 'SELECT latencia FROM info_dezenas')
 datum <- fetch(rs, n = -1)
 
 dbClearResult(rs)
-sqliteCloseConnection(con)
+dbDisconnect(con)
 
 titulo <- sprintf('Latências das dezenas #%d', nrec)
 

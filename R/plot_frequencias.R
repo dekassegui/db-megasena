@@ -5,13 +5,13 @@
 # x11(display=":0.0", 16, 9, 11)
 
 library(RSQLite, quietly=TRUE)
-con <- sqliteNewConnection(dbDriver('SQLite'), dbname='megasena.sqlite')
+con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
 rs <- dbSendQuery(con, 'SELECT dezena FROM dezenas_sorteadas')
 datum <- fetch(rs, n = -1)
 
 dbClearResult(rs)
-sqliteCloseConnection(con)
+dbDisconnect(con)
 
 titulo = paste('Mega-Sena #', (length(datum$dezena) / 6), sep='')
 

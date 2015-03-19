@@ -1,7 +1,7 @@
 #!/usr/bin/Rscript
 
 library(RSQLite)
-con <- sqliteNewConnection(dbDriver('SQLite'), dbname='megasena.sqlite', loadable.extension=TRUE)
+con <- dbConnect(SQLite(), dbname='megasena.sqlite', loadable.extension=TRUE)
 
 dbGetQuery(con, 'SELECT LOAD_EXTENSION("sqlite/more-functions.so")')
 dbGetQuery(con, 'CREATE TEMP TABLE t AS SELECT mask60(dezenas) AS mask FROM dezenas_juntadas WHERE mask LIKE "%11%";')
@@ -10,7 +10,7 @@ rs <- dbSendQuery(con, 'SELECT nt AS yes, n-nt AS no FROM (SELECT COUNT(*) AS nt
 datum <- fetch(rs, n=-1)
 
 dbClearResult(rs)
-sqliteCloseConnection(con)
+dbDisconnect(con)
 
 dimnames(datum) <- list(' frequência', sequenciado=c('sim', 'não'))
 

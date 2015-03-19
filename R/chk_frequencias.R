@@ -1,7 +1,7 @@
 #!/usr/bin/Rscript --slave --no-restore
 
 library(RSQLite)
-con <- sqliteNewConnection(dbDriver('SQLite'), dbname='megasena.sqlite')
+con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
 rs <- dbSendQuery(con, 'SELECT COUNT(*) AS NRECS FROM concursos')
 nrecs = fetch(rs, n = -1)$NRECS
@@ -10,7 +10,7 @@ rs <- dbSendQuery(con, 'SELECT frequencia FROM info_dezenas')
 datum <- fetch(rs, n = -1)
 
 dbClearResult(rs)
-sqliteCloseConnection(con)
+dbDisconnect(con)
 
 teste <- chisq.test(datum$frequencia, correct=FALSE)
 

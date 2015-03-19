@@ -1,8 +1,7 @@
 #!/usr/bin/Rscript
 
 library(RSQLite)
-con <- sqliteNewConnection(
-  dbDriver('SQLite'), dbname='megasena.sqlite', loadable.extension=TRUE)
+con <- dbConnect(SQLite(), dbname='megasena.sqlite', loadable.extension=TRUE)
 
 rs <- dbSendQuery(con, "
   SELECT
@@ -17,7 +16,7 @@ rs <- dbSendQuery(con, "
 datum <- fetch(rs, n=-1)
 
 dbClearResult(rs)
-sqliteCloseConnection(con)
+dbDisconnect(con)
 
 tabela <- table(datum$reincidente, useNA='no')
 aux <- tabela[1]
