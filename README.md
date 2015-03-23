@@ -1,4 +1,4 @@
-## Introdução
+# db-megasena
 
 Scripts para criação, atualização e consultas a DB dos concursos da MegaSena com utilização do <a href="http://www.sqlite.org" title="clique para acessar o website do SQLite">SQLite</a> mais extensões carregáveis, viabilizando analises estatísticas via <a href="http://www.r-project.org/" title="clique para acessar o website do R Statistical Computing...">R Statistical Computing Environment</a> ou similar.
 
