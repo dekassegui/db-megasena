@@ -6,7 +6,7 @@ A versão mais recente contempla as modificações dos dados públicos de 04/09/
 
 ## Uso Corriqueiro
 
-Após a montagem do projeto conforme documentado na página do wiki sobre <a href="https://github.com/dekassegui/db-megasena/blob/wiki/Dependencias.md" title="clique para acessar o documento">Dependências</a>:
+Após a montagem do projeto conforme documentado na página do wiki sobre <a href="https://github.com/dekassegui/db-megasena/wiki/Depend%C3%AAncias" title="clique para acessar o documento">Dependências</a>:
 
   1. Execute o script que baixa os dados do site da <a href="http://www1.caixa.gov.br/loterias/loterias/megasena/megasena_resultado.asp" title="clique aqui para acessar o website da Caixa Econômica Federal">Caixa Econômica Federal > Loterias</a> para atualizar/criar o DB da MegaSena se necessário:
 
