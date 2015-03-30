@@ -1,0 +1,10 @@
+D_megase.zip
+MEGA.XML
+*~
+*.css
+*.html
+*.log
+*.sqlite
+img/*
+sqlite/*.so
+R/wc-0?.R

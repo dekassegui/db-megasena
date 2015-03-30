@@ -4,6 +4,12 @@ Scripts para criação, atualização e consultas a DB dos concursos da MegaSena
 
 A versão mais recente contempla as modificações dos dados públicos de 04/09/2014.
 
+## Importante
+
+Esse projeto **NÃO TEM POR OBJETIVO A PREVISÃO DE NÚMEROS QUE SERÃO SORTEADOS** em algum concurso, embora disponibilize a tabela de nome **sugestoes** montada com estatísticas fundamentadas no estudo de probabilidades.
+
+Contrariando asneiras divulgadas por espertalhões, todos os scripts "aqui" publicados dão subsídios IRREFUTÁVEIS contra teorias absurdas de vícios e tendências nos concursos da MegaSena.
+
 ## Uso Corriqueiro
 
 Após a montagem do projeto conforme documentado na página do wiki sobre <a href="https://github.com/dekassegui/db-megasena/wiki/Depend%C3%AAncias" title="clique para acessar o documento">Dependências</a>:
