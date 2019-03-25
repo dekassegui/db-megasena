@@ -119,7 +119,7 @@ value_of() {
   sed -nr "/^\.$1/ { s/.+(\d34|\d39)(.+)\1.*/\2/p; q }" $2
 }
 
-declare -r html='D_MEGA.HTM'              # html baixado do website
+declare -r html='d_mega.htm'              # html baixado do website
 declare -r xml='MEGA.XML'                 # xml baseado no html
 declare -r db_file='megasena.sqlite'      # container do db SQLite
 declare -r db_renew='sql/db-renew.sql'    # script para criar/regenerar o db
@@ -197,7 +197,7 @@ if [[ $force_update == true ]] || [[ ! -e $xml ]]; then
     printf 'está disponível.\n'
   fi
 
-  unzip -q -o -u -d /tmp $zipfile $html   # extrai o html temporariamente
+  unzip -q -o -u -C -L -d /tmp $zipfile $html   # extrai o html temporariamente
 
   [[ -e $xml ]] && tm=$(timestamp $xml) || unset -v tm
 
