@@ -1,14 +1,13 @@
+-- tabela dos possíveis números da megassena
+create temp table numeros as
+  with me as (
+    select 1 as n union all select n+1 from me where n < 60
+  ) select n from me;
+
 -- tabela das possíveis duplas da megasena
-CREATE TEMP TABLE duplas AS
-  SELECT
-    ZEROPAD(a,2) AS dezena1, ZEROPAD(b,2) AS dezena2,
-    ((1 << a-1) | (1 << b-1)) AS dupla
-  FROM
-    (SELECT DISTINCT dezena AS a FROM dezenas_sorteadas),
-    (SELECT DISTINCT dezena AS b FROM dezenas_sorteadas)
-  WHERE
-    a < b
-  ORDER BY a, b;
+create temp table duplas as
+  select /* a.n, b.n, */ (1 << a.n-1) | (1 << b.n-1) as dupla
+  from numeros as a inner join numeros as b on a.n < b.n;
 
 -- frequências das duplas na série histórica dos concursos
 CREATE TEMP TABLE frequencias_duplas AS

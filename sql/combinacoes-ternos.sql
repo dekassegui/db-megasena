@@ -1,15 +1,13 @@
+-- tabela dos possíveis números da megassena
+create temp table numeros as
+  with me as (
+    select 1 as n union all select n+1 from me where n < 60
+  ) select n from me;
+
 -- tabela dos possíveis ternos da megasena
-CREATE TEMP TABLE ternos AS
-  SELECT
-    zeropad(a,2) as dezena1, zeropad(b,2) as dezena2, zeropad(c,2) as dezena3,
-    ((1 << a-1) | (1 << b-1) | (1 << c-1)) AS terno
-  FROM
-    (SELECT DISTINCT dezena AS a FROM dezenas_sorteadas),
-    (SELECT DISTINCT dezena AS b FROM dezenas_sorteadas),
-    (SELECT DISTINCT dezena AS c FROM dezenas_sorteadas)
-  WHERE
-    a < b AND b < c
-  ORDER BY a, b, c;
+create temp table ternos as
+  select /* a.n, b.n, c.n, */ (1 << a.n-1) | (1 << b.n-1) | (1 << c.n-1) as terno
+  from numeros as a inner join numeros as b on a.n < b.n inner join numeros as c on b.n < c.n;
 
 -- frequências dos ternos na série histórica dos concursos
 CREATE TEMP TABLE frequencias_ternos AS
