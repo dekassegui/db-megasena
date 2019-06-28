@@ -80,9 +80,8 @@ CREATE TABLE sugestoes (
   FOREIGN KEY (concurso) REFERENCES concursos(concurso));
 CREATE VIEW IF NOT EXISTS acertos
   -- tabela dos números sugeridos que foram sorteados
-  AS SELECT * FROM sugestoes WHERE dezena IN (
-    SELECT dezena FROM dezenas_sorteadas
-    WHERE dezenas_sorteadas.concurso == sugestoes.concurso+1);
+  AS SELECT s.* FROM sugestoes AS s JOIN dezenas_sorteadas AS z
+    ON s.concurso+1 == z.concurso AND s.dezena == z.dezena;
 COMMIT;
 DROP TABLE IF EXISTS ganhadores;
 CREATE TABLE ganhadores (
