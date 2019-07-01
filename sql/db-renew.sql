@@ -65,11 +65,13 @@ CREATE TABLE dezenas_sorteadas (
   FOREIGN KEY (concurso) REFERENCES concursos(concurso));
 DROP INDEX IF EXISTS ndx;
 CREATE INDEX ndx ON dezenas_sorteadas (concurso COLLATE binary, dezena COLLATE binary);
-CREATE VIEW IF NOT EXISTS info_dezenas
+CREATE VIEW IF NOT EXISTS info_dezenas AS
   -- frequências das dezenas desde o primeiro concurso
   -- número de concursos recentes em que as dezenas não foram sorteadas
-  AS SELECT dezena, count(dezena) AS frequencia, ((SELECT max(concurso) FROM concursos) - max(concurso)) AS latencia
-  FROM dezenas_sorteadas
+  SELECT dezena, count(dezena) AS frequencia, (M - max(concurso)) AS latencia
+  FROM (
+    SELECT concurso AS M FROM concursos ORDER BY concurso DESC LIMIT 1
+  ), dezenas_sorteadas
   GROUP BY dezena;
 DROP TABLE IF EXISTS sugestoes;
 CREATE TABLE sugestoes (
