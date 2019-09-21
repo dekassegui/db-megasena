@@ -203,8 +203,15 @@ if [[ $force_update == true ]] || [[ ! -e $xml ]]; then
 
   # MONTAGEM DO XML
 
-  iconv -f latin1 -t utf8 /tmp/$html | sed -r -f scripts/xml.sed > $xml
-
+  code=$(file -bi /tmp/$html | sed -ru "s/^.+=//" | tr [:lower:] [:upper:])
+  if [[ $code != 'UTF-8' ]]; then
+    iconv --from-code $code --to-code 'UTF-8' /tmp/$html > /tmp/$html.utf8
+    touch -r /tmp/$html /tmp/$html.utf8
+    cp --preserve /tmp/$html.utf8 /tmp/$html
+    rm -f /tmp/$html.utf8
+  fi
+  sed -r -f scripts/xml.sed /tmp/$html > $xml
+  
   touch -r /tmp/$html $xml    # timestamp do xml <- timestamp do html
 
   if [[ $tm ]] && (( ! $tm < $(timestamp $xml) )); then
