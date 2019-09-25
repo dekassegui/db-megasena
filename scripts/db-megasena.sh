@@ -151,7 +151,7 @@ if [[ $force_update == false ]] && [[ -e $xml ]]; then
   # Pesquisa a data presumida do sorteio mais recente dado que são
   # realizados normalmente às quartas-feiras e sábados às 20:30
   read u F H M <<< $(date '+%u %F %H %M')
-  if (( $u % 3 != 0 )) || (( $H < 20 )) || ((( $H == 20 )) && (( $M < 30 )))
+  if (( $u % 3 != 0 )) || (( 10#$H < 20 )) || ((( 10#$H == 20 )) && (( 10#$M < 30 )))
   then
     (( $u % 7 < 4 )) && weekday='saturday' || weekday='wednesday'
     F=$(TZ=$tz date -d "last $weekday" '+%F')
@@ -206,9 +206,9 @@ if [[ $force_update == true ]] || [[ ! -e $xml ]]; then
   code=$(file -bi /tmp/$html | sed -ru "s/^.+=//" | tr [:lower:] [:upper:])
   if [[ $code != 'UTF-8' ]]; then
     iconv --from-code $code --to-code 'UTF-8' /tmp/$html > /tmp/$html.utf8
-    touch -r /tmp/$html /tmp/$html.utf8
-    cp --preserve /tmp/$html.utf8 /tmp/$html
-    rm -f /tmp/$html.utf8
+    seconds=$(stat -c '%Y' /tmp/$html)
+    mv /tmp/$html.utf8 /tmp/$html
+    touch -t $(date -d@$seconds +%Y%m%d%H%M.%S) /tmp/$html
   fi
   sed -r -f scripts/xml.sed /tmp/$html > $xml
   

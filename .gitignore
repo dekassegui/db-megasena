@@ -8,3 +8,5 @@ MEGA.XML
 img/*
 sqlite/*.so
 R/wc-0?.R
+.gitignore
+*.marks
