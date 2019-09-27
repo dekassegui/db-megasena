@@ -68,6 +68,7 @@ rebuild_db=${rebuild_db:-false}
 shopt -u nocasematch
 
 shopt -s expand_aliases  # habilita expansão de alias
+
 alias Printf="LANG='pt_BR' printf"
 
 # formata indiferentemente ao separador de campos, data no formato
@@ -79,20 +80,10 @@ full_date() {
   [[ ${d:2:1} == '-' ]] && echo ${d:6:4}-${d:3:2}-${d:0:2} || echo $d
 }
 
-# Workaround evitando mal funcionamento do comando "date" ao formatar data
-# arbitrária entre as zero horas e primeira hora do primeiro dia do horário
-# de verão brasileiro, intervalo esse no qual a variável de ambiente TZ aka
-# timezone, é indefinida e.g.: date --date='2012-10-21 00:59:59.999'.
-declare -r tz=$(date +%Z)
-
 # formata indiferentemente ao separador de campos, data no formato
 # yyyy.mm.dd ou dd.mm.yyyy como data no formato "data por extenso"
 long_date() {
-  TZ=$tz date -d $(full_date $1) '+%A, %d de %B de %Y'
-}
-
-unixtime() {
-  TZ=$tz date -d $(full_date $1) '+%s'
+  date -d $(full_date $1) '+%A, %d de %B de %Y'
 }
 
 # data da última modificação de arquivo em segundos da era unix
@@ -151,20 +142,19 @@ if [[ $force_update == false ]] && [[ -e $xml ]]; then
   # Pesquisa a data presumida do sorteio mais recente dado que são
   # realizados normalmente às quartas-feiras e sábados às 20:30
   read u F s <<< $(date '+%u %F %s')
-  if (( $u % 3 != 0 )) || (( $s < $(date -d "$F 20:30" '+%s') ))
-  then
+  if (( $u % 3 != 0 )) || (( $s < $(date -d "$F 20:30" '+%s') )); then
     (( $u % 7 < 4 )) && weekday='saturday' || weekday='wednesday'
-    F=$(TZ=$tz date -d "last $weekday" '+%F')
+    read F s <<< $(date -d "last $weekday" '+%F %s')
   fi
 
   echo -e '\nData presumida do sorteio mais recente: '$(long_date $F)'.'
 
   # extrai a data do último registro no xml
-  data=$(xpath $data_ultimo_concurso)
+  data=$(full_date $(xpath $data_ultimo_concurso))
 
   # se a data presumida do sorteio mais recente for posterior à data
   # do último registro no xml então força a atualização do zipfile
-  if (( $(unixtime $F) > $(unixtime $data) )); then
+  if (( $s > $(date -d $data '+%s') )); then
     force_update=true
   fi
 
