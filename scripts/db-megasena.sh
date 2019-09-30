@@ -140,9 +140,9 @@ declare -r count_n_db='SELECT COUNT(concurso) FROM concursos'
 if [[ $force_update == false ]] && [[ -e $xml ]]; then
 
   # Pesquisa a data presumida do sorteio mais recente dado que são
-  # realizados normalmente às quartas-feiras e sábados às 20:30
+  # realizados normalmente às quartas-feiras e sábados às 20:00
   read u F s <<< $(date '+%u %F %s')
-  if (( $u % 3 != 0 )) || (( $s < $(date -d "$F 20:30" '+%s') )); then
+  if (( $u % 3 != 0 )) || (( $s < $(date -d "$F 20:00" '+%s') )); then
     (( $u % 7 < 4 )) && weekday='saturday' || weekday='wednesday'
     read F s <<< $(date -d "last $weekday" '+%F %s')
   fi
