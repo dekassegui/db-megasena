@@ -4,12 +4,13 @@ library(RSQLite)
 con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
 rs <- dbSendQuery(con, 'SELECT COUNT(concurso) as size FROM concursos')
-size=fetch(rs, n = -1)$size
+size=dbFetch(rs)$size
+dbClearResult(rs)
 
 rs <- dbSendQuery(con, paste(
     'SELECT M-odd AS even, odd FROM',
     '(SELECT count(*) AS M, SUM(dezena % 2) AS odd FROM dezenas_sorteadas)'))
-datum <- fetch(rs, n = -1)
+datum <- dbFetch(rs)
 
 dbClearResult(rs)
 dbDisconnect(con)

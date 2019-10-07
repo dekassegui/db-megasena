@@ -13,7 +13,7 @@ rs <- dbSendQuery(con, "
   FROM
     concursos"
 )
-datum <- fetch(rs, n=-1)
+datum <- dbFetch(rs)
 
 dbClearResult(rs)
 dbDisconnect(con)

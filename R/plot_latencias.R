@@ -4,10 +4,11 @@ library(RSQLite, quietly=TRUE)
 con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
 rs <- dbSendQuery(con, 'SELECT max(concurso) as NREC FROM concursos')
-nrec <- fetch(rs, n = -1)$NREC
+nrec <- dbFetch(rs)$NREC
+dbClearResult(rs)
 
 rs <- dbSendQuery(con, 'SELECT latencia FROM info_dezenas')
-datum <- fetch(rs, n = -1)
+datum <- dbFetch(rs)
 
 dbClearResult(rs)
 dbDisconnect(con)

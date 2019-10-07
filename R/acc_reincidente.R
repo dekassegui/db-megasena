@@ -6,13 +6,21 @@ con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 rs <- dbGetQuery(con, 'SELECT COUNT(concurso) FROM concursos')
 n=as.integer(rs)
 
-dbGetQuery(con, paste(
-  'CREATE TEMP TABLE t AS',
-  'SELECT acumulado, CASE WHEN',
-    '(SELECT dezenas FROM dezenas_juntadas WHERE concurso == concursos.concurso)',
-    '& (SELECT dezenas FROM dezenas_juntadas WHERE concurso == concursos.concurso-1) > 0',
-    'THEN 1 ELSE 0 END AS reincidente FROM concursos'))
+dbCreateTable(con, 
+  dbQuoteIdentifier(con, c("t")),
+  data.frame(
+    acumulado=dbQuoteIdentifier(con, c("acumulado", "INT")),
+    reincidente=dbQuoteIdentifier(con, c("reincidente", "INT"))
+  ),
+  row.names=NULL, temporary=TRUE)
 
+rs <- dbSendStatement(con, paste(
+  'INSERT INTO t SELECT acumulado, CASE WHEN',
+  '(SELECT dezenas FROM dezenas_juntadas WHERE concurso == concursos.concurso)',
+  '& (SELECT dezenas FROM dezenas_juntadas WHERE concurso == concursos.concurso-1) > 0',
+  'THEN 1 ELSE 0 END AS reincidente FROM concursos', sep=" "))
+dbClearResult(rs)
+    
 rs <- dbGetQuery(con, paste(
   'SELECT * FROM',
   '(SELECT COUNT(*) AS a FROM t WHERE acumulado AND reincidente),',

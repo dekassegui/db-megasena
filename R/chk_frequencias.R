@@ -4,10 +4,11 @@ library(RSQLite)
 con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
 rs <- dbSendQuery(con, 'SELECT COUNT(*) AS NRECS FROM concursos')
-nrecs = fetch(rs, n = -1)$NRECS
+nrecs = dbFetch(rs)$NRECS
+dbClearResult(rs)
 
 rs <- dbSendQuery(con, 'SELECT frequencia FROM info_dezenas')
-datum <- fetch(rs, n = -1)
+datum <- dbFetch(rs)
 
 dbClearResult(rs)
 dbDisconnect(con)

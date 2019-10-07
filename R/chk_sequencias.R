@@ -1,23 +1,23 @@
 #!/usr/bin/Rscript
 
 library(RSQLite)
-con <- dbConnect(SQLite(), dbname='megasena.sqlite', loadable.extension=TRUE)
+con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
-dbGetQuery(con, 'SELECT LOAD_EXTENSION("sqlite/more-functions.so")')
-dbGetQuery(con, 'CREATE TEMP TABLE t AS SELECT mask60(dezenas) AS mask FROM dezenas_juntadas WHERE mask LIKE "%11%";')
+rs <- dbGetQuery(con, 'select count(*) from concursos')
+nrec=as.integer(rs)
 
-rs <- dbSendQuery(con, 'SELECT nt AS yes, n-nt AS no FROM (SELECT COUNT(*) AS nt FROM t), (SELECT COUNT(*) AS n FROM concursos)')
-datum <- fetch(rs, n=-1)
+rs <- dbGetQuery(con, 'select count(*) from bitmasks where mask like "%11%"')
+yes <- as.integer(rs)
 
-dbClearResult(rs)
 dbDisconnect(con)
+
+datum <- matrix(c(yes, nrec-yes), nrow=1, ncol=2, byrow=FALSE)
 
 dimnames(datum) <- list(' frequência', sequenciado=c('sim', 'não'))
 
 ph = 0.4
-teste <- prop.test(as.matrix(datum), correct=FALSE, p=ph, alternative='t')
+teste <- prop.test(datum, correct=FALSE, p=ph, alternative='t')
 
-nrec= sum(datum)
 teste$desvio = sqrt(teste$estimate * (1 - teste$estimate) / nrec)
 
 cat('Ocorrência de dezenas consecutivas nos', nrec, 'concursos da Mega-Sena:\n\n')

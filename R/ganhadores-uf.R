@@ -3,7 +3,7 @@
 library(RSQLite, quietly=TRUE)
 con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 rs <- dbSendQuery(con, 'SELECT uf FROM ganhadores')
-datum <- fetch(rs, n=-1)
+datum <- dbFetch(rs)
 dbClearResult(rs)
 dbDisconnect(con)
 

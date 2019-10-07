@@ -7,7 +7,7 @@ rs <- dbSendQuery(con, paste(
     'SELECT acumulado, 6-SUM(dezena % 2) AS even',
     'FROM dezenas_sorteadas NATURAL JOIN concursos',
     'GROUP BY concurso'))
-datum <- fetch(rs, n = -1)
+datum <- dbFetch(rs)
 
 dbClearResult(rs)
 dbDisconnect(con)

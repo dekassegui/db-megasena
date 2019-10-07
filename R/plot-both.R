@@ -7,7 +7,9 @@ library(RSQLite, quietly=TRUE)
 con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
 rs <- dbSendQuery(con, 'SELECT dezena FROM dezenas_sorteadas')
-datum <- fetch(rs, n = -1)
+datum <- dbFetch(rs)
+
+dbClearResult(rs)
 
 nrec <- length(datum$dezena) / 6;
 titulo <- sprintf('Frequências das dezenas #%d', nrec)
@@ -57,7 +59,7 @@ legend(
 )
 
 rs <- dbSendQuery(con, 'SELECT latencia FROM info_dezenas')
-datum <- fetch(rs, n = -1)
+datum <- dbFetch(rs)
 
 dbClearResult(rs)
 dbDisconnect(con)

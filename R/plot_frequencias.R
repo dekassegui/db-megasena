@@ -8,7 +8,7 @@ library(RSQLite, quietly=TRUE)
 con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
 rs <- dbSendQuery(con, 'SELECT dezena FROM dezenas_sorteadas')
-datum <- fetch(rs, n = -1)
+datum <- dbFetch(rs)
 
 dbClearResult(rs)
 dbDisconnect(con)
@@ -50,7 +50,7 @@ legend(
   legend=c('esperança')       # texto correspondente da linha
 )
 
-# renderiza texto na margim direita alinhado ao fundo em negrito com 70% do
+# renderiza texto na margem direita alinhado ao fundo em negrito com 70% do
 # tamanho default de fonte
 mtext('Made with the R Statistical Computing Environment',
       side=4, adj=0, font=2, cex=.7)

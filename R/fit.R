@@ -9,12 +9,7 @@ library(RSQLite)
 con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
 # verifica se entre as tabelas do db há alguma cujo nome é 'fit'
-tabelas <- dbListTables(con)
-for (nome in tabelas) {
-  found <- nome == 'fit'  # preserva o resultado da comparação
-  if (found) break        # finalização antecipada do loop conforme resultado
-}
-if (found) {
+if (dbExistsTable(con, 'fit')) {
   # obtêm o número de registros na tabela de testes de aderência
   nr <- dbGetQuery(con, 'SELECT COUNT(*) FROM fit')[1,1]
 } else {
@@ -26,7 +21,8 @@ if (found) {
   pvalue      DOUBLE CHECK (pvalue >= 0 AND pvalue <= 1),
   FOREIGN KEY (concurso) REFERENCES concursos(concurso)
 )"
-  dbGetQuery(con, query)
+  rs <- dbSendStatement(con, query)
+  dbClearResult(rs)
   nr <- 0
 }
 
@@ -38,20 +34,23 @@ nrecs <- dbGetQuery(con, 'SELECT COUNT(*) AS NRECS FROM concursos')[1,1]
 if (nr < nrecs) {
   # ativa a restrição que impede inserções de registros que
   # não correspondem a nenhum registro na tabela referenciada
-  dbGetQuery(con, 'PRAGMA FOREIGN_KEYS = ON')
+  rs <- dbSendStatement(con, 'PRAGMA FOREIGN_KEYS = ON')
+  dbClearResult(rs)
   # loop pelos registros na tabela concursos
   for (concurso in (nr+1):nrecs) {
     # obtêm a lista das dezenas sorteadas até o concurso corrente
     query <- sprintf('SELECT dezena FROM dezenas_sorteadas WHERE concurso <= %d', concurso)
     rs <- dbSendQuery(con, query)
-    datum <- fetch(rs, n=-1)
+    datum <- dbFetch(rs)
+    dbClearResult(rs)
     # monta a "tabela" de contingência
     frequencias <- tabulate(datum$dezena, nbins=60)
     # executa o teste de aderência
     teste <- chisq.test(frequencias, correct=FALSE)
     # atualiza a tabela de testes de aderência
     query <- sprintf('INSERT INTO fit (concurso, estatistica, pvalue) VALUES (%d, %f, %f)', concurso, teste$statistic, teste$p.value)
-    dbSendQuery(con, query)
+    rs <- dbSendStatement(con, query)
+    dbClearResult(rs)
   }
 }
 
@@ -62,7 +61,8 @@ png(filename='img/fit.png', width=1920, height=1080,
 
 # obtêm todas as probabilidades dos testes de aderência
 rs <- dbSendQuery(con, "SELECT pvalue FROM fit")
-datum <- fetch(rs, n=-1)
+datum <- dbFetch(rs)
+dbClearResult(rs)
 
 # renderiza a sequencia de valores das probabilidades dos testes de aderência
 plot(
@@ -84,7 +84,8 @@ axis(2, las=2, col.axis="#006633")
 
 # obtém os números dos primeiros concursos em cada ano
 rs <- dbSendQuery(con, "SELECT MIN(concurso) as concurso FROM concursos GROUP BY STRFTIME('%Y', data_sorteio)")
-datdois <- fetch(rs, n=-1)
+datdois <- dbFetch(rs)
+dbClearResult(rs)
 
 # evidencia os valores dos primeiros concursos em cada ano
 for (nr in 1:length(datdois$concurso)) {
@@ -125,5 +126,4 @@ legend(
 
 dev.off()  # finaliza o dispositivo gráfico
 
-dbClearResult(rs)
 dbDisconnect(con)

@@ -193,7 +193,7 @@ if [[ $force_update == true ]] || [[ ! -e $xml ]]; then
 
   # MONTAGEM DO XML
 
-  code=$(file -bi /tmp/$html | sed -ru "s/^.+=//" | tr [:lower:] [:upper:])
+  code=$(file -bi /tmp/$html | sed -ru "s/.+=(.+)/\U\1/")
   if [[ $code != 'UTF-8' ]]; then
     iconv --from-code $code --to-code 'UTF-8' /tmp/$html > /tmp/$html.utf8
     tt=$(date -r /tmp/$html +%Y%m%d%H%M.%S)

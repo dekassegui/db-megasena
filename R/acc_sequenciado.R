@@ -1,23 +1,28 @@
 #!/usr/bin/Rscript
 
 library(RSQLite)
-con <- dbConnect(SQLite(), dbname='megasena.sqlite', loadable.extensions=TRUE)
-dbGetQuery(con, 'SELECT LOAD_EXTENSION("./sqlite/more-functions.so")')
+con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
 rs <- dbGetQuery(con, 'SELECT COUNT(concurso) FROM concursos')
 n=as.integer(rs)
 
-dbGetQuery(con, paste(
-  'CREATE TEMP TABLE t AS',
-  'SELECT acumulado, MASK60(dezenas) LIKE "%11%" AS sequenciado',
-  'FROM concursos NATURAL JOIN dezenas_juntadas'))
+dbCreateTable(con, 
+  dbQuoteIdentifier(con, c("t")),
+  data.frame(
+    acumulado=dbQuoteIdentifier(con, c("acumulado", "INT")),
+    sequenciado=dbQuoteIdentifier(con, c("sequenciado", "INT"))
+  ),
+  row.names=NULL, temporary=TRUE)
+
+rs <- dbSendStatement(con, 'INSERT INTO t SELECT acumulado, (mask like "%11%") FROM concursos NATURAL JOIN bitmasks')
+dbClearResult(rs)
 
 rs <- dbGetQuery(con, paste(
   'SELECT * FROM',
   '(SELECT COUNT(*) FROM t WHERE acumulado AND sequenciado),',
   '(SELECT COUNT(*) FROM t WHERE acumulado AND NOT sequenciado),',
   '(SELECT COUNT(*) FROM t WHERE NOT acumulado AND sequenciado),',
-  '(SELECT COUNT(*) FROM t WHERE NOT acumulado AND NOT sequenciado)'))
+  '(SELECT COUNT(*) FROM t WHERE NOT acumulado AND NOT sequenciado)', sep=" "))
 
 dbDisconnect(con)
 

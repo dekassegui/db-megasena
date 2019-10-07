@@ -4,12 +4,13 @@ library(RSQLite)
 con <- dbConnect(SQLite(), dbname='megasena.sqlite')
 
 rs <- dbSendQuery(con, 'SELECT COUNT(concurso) AS NREC FROM concursos')
-nrec = fetch(rs, n = -1)$NREC
+nrec = dbFetch(rs)$NREC
+dbClearResult(rs)
 
 rs <- dbSendQuery(con, paste(
   'SELECT ACC, ', nrec, '-ACC AS WIN FROM',
   '(SELECT SUM(acumulado) AS ACC FROM concursos)'))
-datum <- fetch(rs, n = -1)
+datum <- dbFetch(rs)
 
 dbClearResult(rs)
 dbDisconnect(con)
