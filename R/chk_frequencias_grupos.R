@@ -1,34 +1,45 @@
-#!/usr/bin/Rscript
+#!/usr/bin/Rscript --no-init-file
+
 require(RSQLite)
-con <- dbConnect(dbDriver('SQLite'), dbname='megasena.sqlite', loadable.extension=TRUE)
-datum <- dbGetQuery(con, 'SELECT dezena FROM dezenas_sorteadas')
+con <- dbConnect(dbDriver('SQLite'), 'megasena.sqlite')
+datum <- dbGetQuery(con, 'SELECT dezena AS numero FROM dezenas_sorteadas')
 dbDisconnect(con)
 
-classes.range = 10  # amplitude das classes
+classes.amplitude = 10
 
-cat(sprintf('\nDistribuição das %d dezenas observadas em %d grupos:\n\n', nrow(datum), (60 %/% classes.range)))
+cat('\nDistribuição dos', nrow(datum), 'números observados em',
+  (60 %/% classes.amplitude), 'categorias:\n\n')
 
-classes.bounds <- seq(from=0, to=60, by=classes.range) # limites das classes
+# sequência dos limitantes inferiores das categorias (ou classes)
+classes.limites <- seq(
+  from = 0, to = 60, by = classes.amplitude
+)
 
-frequencias <- table(cut(datum$dezena, classes.bounds, right=TRUE))
-print(cbind(frequencias))
+tabela <- table(
+  cut(
+    datum$numero,
+    classes.limites,
+    right = TRUE
+  )
+)
+print(cbind(tabela))
 
-teste <- chisq.test(frequencias)
-cat('\nTeste de Aderência Chi-square\n\n')
-cat(' H0: Os grupos de dezenas têm distribuição uniforme.\n')
-cat(' HA: Os grupos de dezenas não têm distribuição uniforme.\n')
-cat(sprintf('\n frequência esperada dos grupos = %.2f\n', teste$expected[1]))
-cat(sprintf('\n\tX-squared = %.4f', teste$statistic))
-cat(sprintf('\n\t       df = %d', teste$parameter))
-cat(sprintf('\n\t  p-value = %.4f', teste$p.value))
-action = ifelse(teste$p.value > 0.05, 'Não rejeitamos', 'Rejeitamos')
-cat('\n\n', 'Conclusão:', action, 'H0 conforme evidências estatísticas.\n\n')
+teste <- chisq.test(tabela)
+
+cat('\nTeste de Aderência Chi-square\n')
+cat('\nHØ: Os grupos de dezenas têm distribuição uniforme.\n')
+#cat(' HA: Os grupos de dezenas não têm distribuição uniforme.\n')
+cat(sprintf('\nFrequência esperada dos grupos = %f\n', teste$expected[1]))
+cat(sprintf('\n%21s %f', 'X²-amostral =', teste$statistic))
+cat(sprintf('\n%20s %d', 'df =', teste$parameter))
+cat(sprintf('\n%20s %f', 'p-value =', teste$p.value))
+cat('\n\nConclusão:', ifelse(teste$p.value > 0.05, 'Não rejeitamos', 'Rejeitamos'), 'HØ se α=5%.\n\n')
 
 png(filename='img/histo-dezenas-agrupadas.png', width=560, height=560, family='DejaVu Serif', pointsize=11)
 op <- par(bg = "white", fg="darkgray")
 hist(
-  datum$dezena,
-  classes.bounds,
+  datum$numero,
+  classes.limites,
   right=TRUE,
   col=c('yellowgreen', 'greenyellow'),
   axes=TRUE,

@@ -11,3 +11,4 @@ R/wc-0?.R
 .gitignore
 *.marks
 teste.*
+.R*

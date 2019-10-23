@@ -1,35 +1,41 @@
-#!/usr/bin/Rscript
+#!/usr/bin/Rscript --no-init-file
+
+# A proporção de números pares nos sorteios, 50% por intuição, é investigada
+# a seguir.
 
 library(RSQLite)
 con <- dbConnect(SQLite(), dbname='megasena.sqlite')
-
-rs <- dbSendQuery(con, 'SELECT COUNT(concurso) as size FROM concursos')
-size=dbFetch(rs)$size
-dbClearResult(rs)
-
-rs <- dbSendQuery(con, paste(
-    'SELECT M-odd AS even, odd FROM',
-    '(SELECT count(*) AS M, SUM(dezena % 2) AS odd FROM dezenas_sorteadas)'))
-datum <- dbFetch(rs)
-
-dbClearResult(rs)
+datum <- dbGetQuery(con, 'SELECT (dezena % 2) as paridade FROM dezenas_sorteadas')
 dbDisconnect(con)
 
-rownames(datum)=' amount'
-ph = 0.5
-teste <- prop.test(as.matrix(datum), p=ph, alternative='t', correct=FALSE)
+cat('Paridade dos Números nos Concursos da Mega-Sena\n\n')
+
+tabela <- table(datum$paridade, useNA='no') # tabela de contingência
+
+dimnames(tabela) <- list(
+  '__paridade__' = c('N', 'S')  # ordem natural da tabulação
+)
+ordem <- c('S', 'N')  # ordem que prioriza número de sucessos -- pares
+cat('Tabela de contingência dos dados observados:\n\n')
+print(addmargins(tabela[ ordem ]))
+
+teste <- binom.test(
+  tabela[ ordem ],    # reordenação priorizando número de sucessos
+  p = .5,             # valor hipotético da proporção -- null.value
+  alternative = 't'   # testa se a proporção é igual ao null.value
+)
+
+# estimativa do desvio padrão amostral -- dispersão
 teste$desvio = sqrt(teste$estimate * (1 - teste$estimate) / sum(datum))
 
-cat('Paridades das dezenas nos', size, 'concursos da Mega-Sena:\n\n')
-print(datum)
-cat('\nProporção de dezenas pares:\n\n')
-cat(sprintf(' estimativa ± desvio padrão = %.4f ± %.4f', teste$estimate, teste$desvio), '\n\n')
-cat('Teste da proporção amostral:\n')
-cat('\n', 'H0: A proporção é igual a', ph)
-cat('\n', 'HA: A proporção não é igual a', ph)
-cat(sprintf('\n\n\tX-square = %.4f', teste$statistic))
-cat(sprintf('\n\t      df = %d', teste$parameter))
-cat(sprintf('\n\t p-value = %.4f', teste$p.value))
+cat('\nProporção amostral de números pares:\n')
+cat(sprintf('\n\t%f ± %f', teste$estimate, teste$desvio))
 
-if (teste$p.value > 0.05) action='Não rejeitamos' else action='Rejeitamos'
-cat('\n\n', 'Conclusão:', action, 'H0 conforme evidências estatísticas.\n\n')
+cat('\n\nTeste da proporção amostral:\n')
+cat('\n\tmétodo:', teste$method)
+cat('\n\n\tH0: A proporção é igual a', teste$null.value)
+cat(sprintf('\n\n%20s %f', 'p-value =', teste$p.value))
+alfa = .05
+cat(sprintf('\n%21s %f', 'α =', alfa))
+
+cat('\n\nConclusão:', ifelse((teste$p.value > 0.05), 'Não rejeitamos', 'Rejeitamos'), 'H0.\n\n')

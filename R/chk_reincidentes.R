@@ -1,46 +1,50 @@
-#!/usr/bin/Rscript
+#!/usr/bin/Rscript --no-init-file
+
+# REINCIDÊNCIA é a repetição de um ou mais números em concursos consecutivos,
+# cuja proporção do número de concursos em que ocorreram ao longo do tempo é
+# hipoteticamente igual a 50% ou seja; ocorre a cada dois concursos.
 
 library(RSQLite)
-con <- dbConnect(SQLite(), dbname='megasena.sqlite', loadable.extension=TRUE)
-
-rs <- dbSendQuery(con, "
-  SELECT
-    ((SELECT dezenas FROM dezenas_juntadas
-      WHERE concurso == concursos.concurso)
-     &
-     (SELECT dezenas FROM dezenas_juntadas
-      WHERE concurso == concursos.concurso-1)) >= 1 AS reincidente
-  FROM
-    concursos"
+con <- dbConnect(SQLite(), dbname='megasena.sqlite')
+datum <- dbGetQuery(con,
+  "SELECT ((a.dezenas & b.dezenas) != 0) AS reincidente
+   FROM dezenas_juntadas AS a JOIN dezenas_juntadas AS b
+     ON a.concurso-1 == b.concurso"
 )
-datum <- dbFetch(rs)
-
-dbClearResult(rs)
 dbDisconnect(con)
 
-tabela <- table(datum$reincidente, useNA='no')
-aux <- tabela[1]
-tabela[1] <- tabela[2]
-tabela[2] <- aux
-dimnames(tabela) <- list(c('sim', 'não'))
-cat('Reincidências nos concursos da Mega-Sena:\n\n')
-#print(tabela)
-cat(sprintf('\t%s\t%s\n', 'sim', 'não'))
-cat(sprintf('\t%d\t%d\n', tabela['sim'], tabela['não']))
+cat('Reincidências nos Concursos da Mega-Sena\n')
 
-ph = 0.5
-teste <- prop.test(tabela, p=ph, alternative='t', correct=FALSE)
+tabela <- table(datum$reincidente, useNA='no')  # tabela de contingência
+
+cat('\nTabela de contingência dos dados observados:\n\n')
+dimnames(tabela) <- list(
+  '_reincidência_' = c('N', 'S')    # ordem natural da tabulação
+)
+ordem <- c('S', 'N')                # prioriza o números de sucessos
+print(addmargins(tabela[ ordem ]))  # output de sumário da tabela
+
+teste <- prop.test(
+  tabela[ ordem ],            # reordenação das colunas coerente com o teste
+  p = 0.5,                    # valor hipotético da proporção de reincidências
+  conf.level = .05,           # nível de significância do teste
+  alternative = 'two.sided',  # teste de igualdade
+  correct = FALSE             # não aplica a correção de Yates
+)
+
 teste$desvio = sqrt(teste$estimate * (1 - teste$estimate) / sum(tabela))
 
-cat('\nProporção de concursos em que ocorreram reincidências:\n\n')
-cat(sprintf(' estimativa ± desvio padrão = %.4f ± %.4f', teste$estimate, teste$desvio), '\n\n')
+cat('\nProporção do número de concursos em que ocorreram reincidências:\n\n')
+cat(sprintf('\t%f ± %f', teste$estimate, teste$desvio))
 
-cat('Teste da proporção amostral:\n')
-cat('\n', 'H0: A proporção é igual a', ph)
-cat('\n', 'HA: A proporção não é igual a', ph)
-cat(sprintf('\n\n\tX-square = %.4f', teste$statistic))
-cat(sprintf('\n\t      df = %d', teste$parameter))
-cat(sprintf('\n\t p-value = %.4f', teste$p.value))
+cat('\n\nTeste da proporção amostral:\n')
+cat('\n\tH0: A proporção é igual a', teste$null.value)
+#cat('\n\tHA: A proporção não é igual a', teste$null.value)
+cat('\n\n\tmétodo:', teste$method)
+cat(sprintf('\n\n\t%21s %f', 'X²-amostral =', teste$statistic))
+cat(sprintf('\n\t%20s %d', 'df =', teste$parameter))
+cat(sprintf('\n\n\t%20s %f', 'p-value =', teste$p.value))
+alfa = attr(teste$conf.int, "conf.level")
+cat(sprintf('\n\t%21s %f', 'α =', alfa))
 
-if (teste$p.value > 0.05) action='Não rejeitamos' else action='Rejeitamos'
-cat('\n\n', 'Conclusão:', action, 'H0 conforme evidências estatísticas.\n\n')
+cat('\n\nConclusão:', ifelse((teste$p.value > alfa), 'Não rejeitamos', 'Rejeitamos'), 'H0.\n\n')

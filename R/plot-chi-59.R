@@ -1,4 +1,4 @@
-#!/usr/bin/Rscript
+#!/usr/bin/Rscript --no-init-file
 
 chi.df = 59
 

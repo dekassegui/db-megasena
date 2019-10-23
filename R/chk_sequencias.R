@@ -1,38 +1,48 @@
-#!/usr/bin/Rscript
+#!/usr/bin/Rscript --no-init-file
+
+# O sorteio de "números consecutivos" nos concursos não surpreende, pois o
+# universo dos possíveis números a sortear é muito pequeno. A proporção da
+# quantidade de concursos com ocorrência do evento é investigada a seguir.
 
 library(RSQLite)
 con <- dbConnect(SQLite(), dbname='megasena.sqlite')
-
-rs <- dbGetQuery(con, 'select count(*) from concursos')
-nrec=as.integer(rs)
-
-rs <- dbGetQuery(con, 'select count(*) from bitmasks where mask like "%11%"')
-yes <- as.integer(rs)
-
+datum <- dbGetQuery(con, 'SELECT (mask GLOB "*11*") FROM bitmasks')
 dbDisconnect(con)
 
-datum <- matrix(c(yes, nrec-yes), nrow=1, ncol=2, byrow=FALSE)
+cat('-- Números Consecutivos nos Concursos da Mega-Sena --\n')
 
-dimnames(datum) <- list(' frequência', sequenciado=c('sim', 'não'))
+tabela <- table(datum[[1]])[c('1','0')]
 
-ph = 0.4
-teste <- prop.test(datum, correct=FALSE, p=ph, alternative='t')
+cat('\nTabela de contingência das observações:\n\n')
+dimnames(tabela) <- list(
+  'sequência' = c('S', 'N')
+)
+print(addmargins(tabela))  # sumário da tabela
 
-teste$desvio = sqrt(teste$estimate * (1 - teste$estimate) / nrec)
+p.null = round(tabela['S'] / sum(tabela) * 100) / 100
 
-cat('Ocorrência de dezenas consecutivas nos', nrec, 'concursos da Mega-Sena:\n\n')
-print(datum)
+teste <- prop.test(
+  tabela,
+  p = p.null,       # valor hipotético da proporção
+  correct = FALSE   # não aplica correção de Yates
+)
 
-cat('\nProporção de concursos com ocorrência de dezenas consecutivas:\n')
-cat('\n', sprintf('estimativa ± desvio padrão = %.4f ± %.4f\n', teste$estimate, teste$desvio))
+teste$desvio = sqrt(teste$estimate * (1 - teste$estimate) / sum(tabela))
+
+cat('\nProporção de concursos com ocorrência de números consecutivos:\n')
+cat(sprintf('\n\t\t%f ± %f\n', teste$estimate, teste$desvio))
+
 cat('\nTeste da proporção amostral:\n')
+cat('\n\tHØ: A proporção é igual a', teste$null.value)
+#cat('\n HA: A proporção não é igual a', ph, '\n')
+cat('\n\n\tmétodo:', teste$method)
 
-cat('\n H0: A proporção é igual a', ph)
-cat('\n HA: A proporção não é igual a', ph, '\n')
+cat(sprintf('\n\n%21s %f', 'X²-amostral =', teste$statistic))
+cat(sprintf('\n%20s %d', 'df =', teste$parameter))
+cat(sprintf('\n\n%20s %f', 'p-value =', teste$p.value))
+alfa = .05
+cat(sprintf('\n%21s %f', 'α =', alfa))
 
-cat('\n', sprintf('X-square = %.4f', teste$statistic))
-cat('\n', sprintf('      df = %d', teste$parameter))
-cat('\n', sprintf(' p-value = %.4f', teste$p.value))
-
-action = ifelse(teste$p.value > 0.05, 'Não rejeitamos', 'Rejeitamos')
-cat('\n\n', 'Conclusão:', action, 'H0 conforme evidências estatísticas.\n\n')
+cat('\n\nConclusão:',
+    ifelse(teste$p.value > alfa, 'Não rejeitamos', 'Rejeitamos'),
+    'HØ.\n')

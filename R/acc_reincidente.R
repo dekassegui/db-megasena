@@ -1,47 +1,43 @@
-#!/usr/bin/Rscript
+#!/usr/bin/Rscript --no-init-file
+
+# REINCIDÊNCIA é quando ocorre repetição de um ou mais números em concursos
+# consecutivos e quando num concurso qualquer não há aposta vencedora do prêmio
+# principal, haverá sua ACUMULAÇÃO para o seguinte. A hipótese de que esses
+# eventos ocorrem independentemente entre si está confirmada a seguir.
 
 library(RSQLite)
 con <- dbConnect(SQLite(), dbname='megasena.sqlite')
-
-rs <- dbGetQuery(con, 'SELECT COUNT(concurso) FROM concursos')
-n=as.integer(rs)
-
-dbCreateTable(con, 
-  dbQuoteIdentifier(con, c("t")),
-  data.frame(
-    acumulado=dbQuoteIdentifier(con, c("acumulado", "INT")),
-    reincidente=dbQuoteIdentifier(con, c("reincidente", "INT"))
-  ),
-  row.names=NULL, temporary=TRUE)
-
-rs <- dbSendStatement(con, paste(
-  'INSERT INTO t SELECT acumulado, CASE WHEN',
-  '(SELECT dezenas FROM dezenas_juntadas WHERE concurso == concursos.concurso)',
-  '& (SELECT dezenas FROM dezenas_juntadas WHERE concurso == concursos.concurso-1) > 0',
-  'THEN 1 ELSE 0 END AS reincidente FROM concursos', sep=" "))
-dbClearResult(rs)
-    
-rs <- dbGetQuery(con, paste(
-  'SELECT * FROM',
-  '(SELECT COUNT(*) AS a FROM t WHERE acumulado AND reincidente),',
-  '(SELECT COUNT(*) AS b FROM t WHERE acumulado AND NOT reincidente),',
-  '(SELECT COUNT(*) AS c FROM t WHERE NOT acumulado AND reincidente),',
-  '(SELECT COUNT(*) AS d FROM t WHERE NOT acumulado AND NOT reincidente)'))
-
+datum <- dbGetQuery(con,
+  "SELECT acumulado, reincidente FROM (
+     SELECT a.concurso, ((a.dezenas & b.dezenas) != 0) AS reincidente
+     FROM dezenas_juntadas AS a JOIN dezenas_juntadas AS b
+       ON a.concurso-1 == b.concurso
+   ) JOIN concursos USING(concurso)")
 dbDisconnect(con)
 
-m <- matrix(as.integer(rs[1:4]), ncol=2, byrow=TRUE)
-dimnames(m) <- list(' acumulado'=c('sim','não'), reincidente=c('sim','não'))
-teste <- chisq.test(m, correct=FALSE)
+cat('-- Acumulação x Reincidência nos Concursos da Mega-Sena --\n')
 
-cat('Acumulados X Reincidentes nos', n, 'concursos da Mega-Sena:\n\n')
-addmargins(m)
-cat('\nTeste de Independência entre Eventos:\n')
-cat('\n', 'H0: Os eventos são independentes.')
-cat('\n', 'HA: Os eventos não são independentes.')
-cat('\n\n\t', sprintf('X-square = %.4f', teste$statistic))
-cat('\n\t', sprintf('      df = %d', teste$parameter))
-cat('\n\t', sprintf(' p-value = %.4f', teste$p.value))
+tabela <- table(datum)[c('1','0'),c('1','0')]
 
-if (teste$p.value > 0.05) action='Não rejeitamos' else action='Rejeitamos'
-cat('\n\n', 'Conclusão:', action, 'H0 conforme evidências estatísticas.\n\n')
+cat('\nTabela de contingência das observações:\n\n')
+dimnames(tabela) <- list(
+  'acumulado' = c('S', 'N'),
+  'reincidente' = c('S', 'N')
+)
+print(addmargins(tabela)) # output de sumário da tabela
+
+teste <- chisq.test(
+  tabela,
+  correct = FALSE   # não aplica a correção de Yates
+)
+
+cat('\n  H0: Os eventos são independentes.')
+cat('\n\n  método:', teste$method)
+cat(sprintf('\n\n%21s %f', 'X²-amostral =', teste$statistic))
+cat(sprintf('\n%20s %d', 'gl =', teste$parameter))
+cat(sprintf('\n\n%20s %f', 'p-value =', teste$p.value))
+coef.level = .05
+cat(sprintf('\n%21s %f', 'α =', coef.level))
+cat('\n\nConclusão:',
+  ifelse(teste$p.value > coef.level, 'Não rejeitamos', 'Rejeitamos'),
+  'a hipótese nula.\n\n')

@@ -1,4 +1,4 @@
-#!/usr/bin/Rscript
+#!/usr/bin/Rscript --no-init-file
 #
 # Montagem dos gráficos das frequências e latências combinados em única imagem
 # que faz parte do relatório sobre o concurso mais recente da Mega-Sena.
