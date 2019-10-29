@@ -5,14 +5,10 @@
 #
 library(RSQLite, quietly=TRUE)
 con <- dbConnect(SQLite(), dbname='megasena.sqlite')
-
-rs <- dbSendQuery(con, 'SELECT dezena FROM dezenas_sorteadas')
-datum <- dbFetch(rs)
-
-dbClearResult(rs)
+datum <- dbGetQuery(con, 'SELECT dezena FROM dezenas_sorteadas')
 
 nrec <- length(datum$dezena) / 6;
-titulo <- sprintf('Frequências das dezenas #%d', nrec)
+titulo <- sprintf('Frequências dos números #%d', nrec)
 
 # monta a tabela das classes com suas respectivas frequências
 tabela <- table(datum$dezena)
@@ -24,47 +20,54 @@ dimnames(tabela) <- list(rotulos)
 # arquivo para armazenamento da imagem com declaração das dimensões do
 # device gráfico e tamanho da fonte de caracteres
 fname=sprintf('img/both-%d.png', nrec)
-png(filename=fname, width=1100, height=600, pointsize=9)
+png(filename=fname, width=1100, height=600, pointsize=9, family="Quicksand")
 
 # preserva configuração do dispositivo gráfico antes de personalizar
 # layout posicionando os dois gráficos alinhados horizontalmente
 op <- par(mfrow=c(2, 1))
 
-bar_colors <- c('gold', 'orange')
+BAR_COLORS <- c('gold', 'orange')
+SPC=.25
+
+major=max(tabela)
+minor=(min(tabela) %/% 10 - 1) * 10
 
 barplot(
   tabela,
-  main=titulo,
-  ylab='frequência',
-  col=bar_colors,
-  space=0.25,
-  ylim=c(120, (1 + max(tabela) %/% 25) * 25),
-  xpd=FALSE
+  main=list(titulo, cex=1.375),
+  #ylab='frequência',
+  col=BAR_COLORS,
+  space=SPC,
+  ylim=c(minor, major+1),
+  xpd=FALSE,
+  yaxt='n'
 )
 
-# sobrepõe linha horizontal de referência
+axis(
+  2,                  # eixo y
+  las=2,              # labels dispostos perpendicularmente
+  col.axis="#333333",
+  font.axis=2,
+  at=seq(from=minor, to=major, by=10)
+)
+
+media <- mean(tabela)
+r <- seq(from=minor+10, to=major, by=10)
+abline( h=r[ which(r < media-3 | r > media+3) ], col="gray", lty=3 )
+
+# renderiza linha horizontal da esperança das frequências :: média
 abline(
-  h=mean(tabela), # esperança das frequências observadas
-  col='red',      # cor da linha
-  lty=3           # 1=continua, 2=tracejada, 3=pontilhada
+  h=media,    # esperança = 6 * N / 60
+  col='red',  # cor da linha
+  lty=3       # 1=continua, 2=tracejada, 3=pontilhada
 )
 
-gd <- par()$usr   # coordenadas dos extremos do dispositivo de renderização
+legend("topright", legend='esperança', bty='n', col='red', lty=3, cex=1.125)
 
-legend(
-  3*(gd[1]+gd[2])/4, gd[4],   # coordenada (x,y) da legenda
-  bty='n',                    # omite renderização de bordas
-  col='red', lty=3,           # atributos da única linha amostrada
-  legend=c('esperança')       # texto correspondente da linha
-)
-
-rs <- dbSendQuery(con, 'SELECT latencia FROM info_dezenas')
-datum <- dbFetch(rs)
-
-dbClearResult(rs)
+datum <- dbGetQuery(con, 'SELECT latencia FROM info_dezenas')
 dbDisconnect(con)
 
-titulo <- sprintf('Latências das dezenas #%d', nrec)
+titulo <- sprintf('Latências dos números #%d', nrec)
 
 x <- as.vector(datum$latencia)
 
@@ -72,25 +75,34 @@ names(x) <- rotulos
 
 barplot(
   x,
-  main=titulo,
-  ylab='latência',
-  col=bar_colors,
-  space=0.25
+  main=list(titulo, cex=1.375),
+  #ylab='latência',
+  col=BAR_COLORS,
+  space=SPC,
+  ylim=c(0, max(x)+1),
+  yaxt='n'
 )
 
+axis(
+  2,
+  las=2,
+  col.axis="#333333",
+  font.axis=2,
+  at=seq(from=0, to=max(x), by=10)
+)
+
+abline( h=c(5, seq(20, max(x), 10)), col="gray", lty=3 )
+
 abline(
-  h=10,             # esperança das latências
+  h=10,             # esperança das latências :: 60 / 6
   col='red', lty=3
 )
 
-gd <- par()$usr
+legend("topright", legend="esperança", bty='n', col='red', lty=3, cex=1.125)
 
-legend(
-  3*(gd[1]+gd[2])/4, 4*gd[4]/5,
-  bty='n',
-  col='red', lty=3,
-  legend=c('esperança')
-)
+# footer no canto inferior direito
+mtext(sprintf("Concurso %d da Mega-Sena", nrec),
+  side=1, adj=1, line=3.9, cex=1.15, font=4, col='lightslategray')
 
 par <- op  # restaura device gráfico
 

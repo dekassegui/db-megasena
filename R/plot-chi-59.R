@@ -10,6 +10,7 @@ chi.tail <- function(x) { pchisq(x, chi.df, lower.tail=FALSE) }
 
 args = commandArgs(TRUE)
 estatistica = as.numeric(args[1])
+concurso = as.numeric(args[2])
 usingPNG = FALSE
 if (is.na(estatistica)) {
   # renderização em ambiente interativo
@@ -79,5 +80,10 @@ legend(
   fill=cores,
   legend=c(sprintf("%.3f (%5.3f)", valores, chi.tail(valores)))
 )
+
+# footer no canto inferior direito
+if (!is.na(concurso))
+  mtext(sprintf("Concurso %d da Mega-Sena", concurso),
+    side=1, adj=1, line=3.9, cex=1.15, font=4, col='lightslategray')
 
 if (usingPNG) dev.off()

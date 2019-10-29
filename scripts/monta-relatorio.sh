@@ -104,9 +104,8 @@ DOC
 
 png_compress() {
   local tmpfile=/tmp/saida.png
-  # renderiza texto sobre o número do concurso no canto inferior direito e
   # converte a imagem PNG de true-color para indexed 256 colors
-  1>/dev/null which convert && convert -pointsize 11 -fill '#778899' -gravity SouthEast -draw "text 1,1 'Concurso $num_concurso da MegaSena.'" -quality 0 +dither -colors 256 "$1" $tmpfile
+  1>/dev/null which convert && convert -quality 0 +dither -colors 256 "$1" $tmpfile
   # compressão default da imagem resultante
   1>/dev/null which pngcrush && pngcrush -q $tmpfile "$1"
 }
@@ -122,7 +121,7 @@ DOC
 probability='5%'
 critical='77.931'
 read n chi status <<< $(sqlite3 -separator ' ' megasena.sqlite "SELECT n, round(chi,3), (chi >= $critical) FROM (SELECT n, sum(desvio*desvio/esperanca) AS chi FROM (SELECT n, esperanca, (frequencia-esperanca) AS desvio FROM info_dezenas, (SELECT n, n/10.0 AS esperanca FROM (SELECT count(concurso) AS n from concursos))))")
-R/plot-chi-59.R $chi
+R/plot-chi-59.R $chi $num_concurso
 png_compress 'img/chi-59.png'
 cat >> $html <<DOC
     <h2>Teste de Aderência <span>&#967;&#178;<!-- 0x03C7 0x00B2 χ² --></span></h2>
@@ -305,7 +304,7 @@ FROM (
     )
   )
 )")
-R/plot-chi-one.R $chi
+R/plot-chi-one.R $chi $num_concurso
 png_compress 'img/chi-one.png'
 cat >> $html <<DOC
     <h2>Teste de Independência “Acumular x Sequência de dezenas consecutivas”</h2>
