@@ -82,6 +82,6 @@ legend(
 # footer no canto inferior direito
 if (!is.na(concurso))
   mtext(sprintf("Concurso %d da Mega-Sena", concurso),
-    side=1, adj=1, line=3.9, cex=1.15, font=4, col='lightslategray')
+    side=1, adj=1.04, line=3.8, cex=1.15, font=4, col='lightslategray')
 
 if (usingPNG) dev.off()

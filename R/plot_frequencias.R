@@ -1,4 +1,4 @@
-#!/usr/bin/Rscript
+#!/usr/bin/Rscript --no-init-file
 
 # library(graphics)
 # display value found in environment variable $DISPLAY
@@ -6,14 +6,8 @@
 
 library(RSQLite, quietly=TRUE)
 con <- dbConnect(SQLite(), dbname='megasena.sqlite')
-
-rs <- dbSendQuery(con, 'SELECT dezena FROM dezenas_sorteadas')
-datum <- dbFetch(rs)
-
-dbClearResult(rs)
+datum <- dbGetQuery(con, 'SELECT dezena FROM dezenas_sorteadas')
 dbDisconnect(con)
-
-titulo = paste('Mega-Sena #', (length(datum$dezena) / 6), sep='')
 
 # monta a tabela das classes com suas respectivas frequências
 tabela <- table(datum$dezena)
@@ -23,36 +17,60 @@ dimnames(tabela) <- list(sprintf('%02d', 1:length(tabela)))
 
 # arquivo para armazenamento da imagem com declaração das dimensões do
 # display gráfico e tamanho da fonte de caracteres
-png(filename='img/frequencias.png', width=1000, height=558, pointsize=13)
+png(filename='img/frequencias.png', width=1200, height=600, pointsize=12, family="Quicksand")
+
+minor=10 * (min(tabela) %/% 10 - 1)
+major=1 + max(tabela)
 
 barplot(
   tabela,
-  main=titulo,
-  ylab='frequência',
-  col=c('pink', 'khaki'),
+  main=list(
+    paste('Frequências dos Números no Concurso', (length(datum$dezena)/6), 'da Mega-Sena'),
+    cex=1.5, font=2, col='black'
+  ),
+  #ylab='frequência',
+  cex.names=1.25, font.axis=2,
+  ylim=c(minor, major),
+  border='#333333',
+  col=c('orange', 'gold'),
+  #density=26,
   space=.25,
-  ylim=c(0, (1+max(tabela)%/%25)*25)
+  xpd=FALSE,
+  yaxt='n'
 )
+
+r <- seq(from=minor, to=major, by=10)
+
+axis(
+  2,                  # eixo y
+  las=2,              # labels dispostos perpendicularmente
+  col.axis="#333333",
+  cex.axis=1.25,
+  font.axis=2,
+  at=r
+)
+
+m=mean(tabela)
+r <- tail(r, -1)
+abline(h=r[abs(m-r) > 2], col="gray", lty=3)
 
 # sobrepõe linha horizontal de referência
 abline(
-  h=mean(tabela), # esperança das frequências observadas
-  col='red',      # cor da linha
-  lty=3           # 1=continua, 2=tracejada, 3=pontilhada
+  h=m,          # esperança das frequências observadas
+  col='red',    # cor da linha
+  lty=3         # 1=continua, 2=tracejada, 3=pontilhada
 )
 
-gd <- par()$usr   # coordenadas dos extremos do dispositivo de renderização
-
 legend(
-  3*(gd[1]+gd[2])/4, gd[4],   # coordenada (x,y) da legenda
-  bty='n',                    # omite renderização de bordas
-  col='red', lty=3,           # atributos da única linha amostrada
-  legend=c('esperança')       # texto correspondente da linha
+  "topright",
+  legend='esperança', # texto correspondente da linha
+  bty='n',            # omite renderização de bordas
+  col='red', lty=3    # atributos da única linha amostrada
 )
 
 # renderiza texto na margem direita alinhado ao fundo em negrito com 70% do
 # tamanho default de fonte
-mtext('Made with the R Statistical Computing Environment',
-      side=4, adj=0, font=2, cex=.7)
+mtext('Gerado via GNU R-cran.',
+  side=1, adj=1.025, line=3.9, cex=1.15, font=4, col='slategray')
 
 dev.off()   # finaliza a renderização e fecha o arquivo

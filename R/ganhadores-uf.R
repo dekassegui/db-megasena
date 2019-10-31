@@ -52,13 +52,16 @@ SPACES <- rep.int(.1, 28); SPACES[1]=0; SPACES[ c(8, 17, 20, 24, 28) ]=.3
 
 barplot(
   tabela[UFS],
-  offset=0,
+  names.arg=UFS,
+  main=list('Apostas Vencedoras na Mega-Sena', cex=11/8, font=2, col='#222222'),
+  # simula subtitle personalizando label do eixo x
+  xlab=list('Quantidade × Unidade Federativa', cex=5/4, font=2, col='#222222'),
+  #offset=0,
+  cex.name=1.025, font.axis=2, col.axis='#202020',
+  border="#555555",
   col=CORES,
   density=DENSIDADES,
   space=SPACES,
-  main=list('Apostas Vencedoras na Mega-Sena', cex=11/8, font=2, col='#222222'),
-  # simula subtitle personalizando label do eixo x
-  xlab=list('Quantidade × Unidade Federativa', cex=5/4, font=2, col='#333333'),
   # desabilita renderização padrão do eixo y -- personalizada a seguir
   yaxt='n'
 )
@@ -68,7 +71,8 @@ Y <- c(0, 10, 20, 50, 100, 150, 200, max(tabela)) # valores preferenciais
 axis(
   2,                  # eixo y
   las=2,              # labels dispostos perpendicularmente
-  col.axis="#333333",
+  col.axis="#202020",
+  cex.axis=1,
   font.axis=2,
   at=Y
 )
@@ -82,7 +86,7 @@ yStat <- list(
   list( texto='mediana', valor=median(tabela), color='#990033' )
 )
 
-abline( h=Y[ which(Y > media) ], col="#acacac", lty=3 )
+abline( h=Y[ Y > media ], col="#acacac", lty=3 )
 
 gd <- par()$usr   # extremidades do dispositivo de renderização
 
@@ -99,6 +103,6 @@ for (i in 1:2) {
 
 # footer no canto inferior direito
 mtext(format(Sys.time(), 'Gerado via GNU R-cran em %d-%m-%Y.'),
-  side=1, line=4, adj=1, cex=.87, font=4, col='lightslategray')
+  side=1, adj=1.035, line=4, cex=1, font=4, col='lightslategray')
 
 dev.off()

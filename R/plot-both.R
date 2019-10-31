@@ -36,6 +36,8 @@ barplot(
   tabela,
   main=list(titulo, cex=1.375),
   #ylab='frequência',
+  cex.names=1.25, font.axis=2,
+  border='#333333',
   col=BAR_COLORS,
   space=SPC,
   ylim=c(minor, major+1),
@@ -47,6 +49,7 @@ axis(
   2,                  # eixo y
   las=2,              # labels dispostos perpendicularmente
   col.axis="#333333",
+  cex.axis=1.25,
   font.axis=2,
   at=seq(from=minor, to=major, by=10)
 )
@@ -77,6 +80,8 @@ barplot(
   x,
   main=list(titulo, cex=1.375),
   #ylab='latência',
+  cex.names=1.25, font.axis=2,
+  border='#333333',
   col=BAR_COLORS,
   space=SPC,
   ylim=c(0, max(x)+1),
@@ -87,6 +92,7 @@ axis(
   2,
   las=2,
   col.axis="#333333",
+  cex.axis=1.25,
   font.axis=2,
   at=seq(from=0, to=max(x), by=10)
 )
@@ -102,7 +108,7 @@ legend("topright", legend="esperança", bty='n', col='red', lty=3, cex=1.125)
 
 # footer no canto inferior direito
 mtext(sprintf("Concurso %d da Mega-Sena", nrec),
-  side=1, adj=1, line=3.9, cex=1.15, font=4, col='lightslategray')
+  side=1, adj=1.015, line=3.9, cex=1.15, font=4, col='lightslategray')
 
 par <- op  # restaura device gráfico
 
