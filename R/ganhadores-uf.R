@@ -43,6 +43,7 @@ online <- list( ufs="XX", cores="lightgray" )
 # disposição das ufs na ordem preferencial das regiões
 UFS <- c(norte$ufs, nordeste$ufs, sul$ufs, sudeste$ufs, centroeste$ufs, online$ufs)
 
+# dispositivo de renderização: arquivo PNG
 png(filename='img/ganhadores-uf.png', width=1080, height=640, pointsize=13, family='Quicksand')
 
 # prepara parâmetros conforme ordem preferencial das regiões
@@ -50,59 +51,63 @@ CORES <- c(norte$cores, nordeste$cores, sul$cores, sudeste$cores, centroeste$cor
 DENSIDADES <- rep.int(30, 28); DENSIDADES[28]=-1
 SPACES <- rep.int(.1, 28); SPACES[1]=0; SPACES[ c(8, 17, 20, 24, 28) ]=.3
 
+BOLD=2
+BOLD_ITALIC=4
+DOTTED='dotted'
+Y_AXIS=2
+
+COL_AXIS='#202020'
+TITLE_COL='gray2'
+
 barplot(
   tabela[UFS],
   names.arg=UFS,
-  main=list('Apostas Vencedoras na Mega-Sena', cex=11/8, font=2, col='#222222'),
+  main=list(
+    'Apostas Vencedoras na Mega-Sena', cex=11/8, font=BOLD, col=TITLE_COL
+  ),
   # simula subtitle personalizando label do eixo x
-  xlab=list('Quantidade × Unidade Federativa', cex=5/4, font=2, col='#222222'),
+  xlab=list(
+    'Quantidade × Unidade Federativa', cex=5/4, font=BOLD, col=TITLE_COL
+  ),
   #offset=0,
-  cex.name=1.025, font.axis=2, col.axis='#202020',
-  border="#555555",
-  col=CORES,
-  density=DENSIDADES,
-  space=SPACES,
+  cex.name=1.025, font.axis=BOLD, col.axis=COL_AXIS,
+  border="#555555", col=CORES, density=DENSIDADES, space=SPACES,
   # desabilita renderização padrão do eixo y -- personalizada a seguir
-  yaxt='n'
+  yaxt='n',
+  ylim=c(0, max(tabela)+5)
 )
 
 Y <- c(0, 10, 20, 50, 100, 150, 200, max(tabela)) # valores preferenciais
 
-axis(
-  2,                  # eixo y
-  las=2,              # labels dispostos perpendicularmente
-  col.axis="#202020",
-  cex.axis=1,
-  font.axis=2,
-  at=Y
-)
+axis(Y_AXIS, las=2, cex.axis=1, font.axis=BOLD, col.axis=COL_AXIS, at=Y)
 
-# renderiza linhas horizontais de referência
-
+# renderiza linhas de referência ordinárias com valor acima da média
 media=mean(tabela)
+abline( h=Y[ Y > media ], col="#acacac", lty=DOTTED )
 
+# renderiza texto e linha de referência da média e da mediana
 yStat <- list(
-  list( texto='média', valor=media, color='#003399' ),
-  list( texto='mediana', valor=median(tabela), color='#990033' )
+  nome=c('média', 'mediana'), valor=c(media, median(tabela)), color=c('#003399', '#990033')
 )
-
-abline( h=Y[ Y > media ], col="#acacac", lty=3 )
-
-gd <- par()$usr   # extremidades do dispositivo de renderização
-
+x2 <- par()$usr[2]; ADJ=c(1, -0.5)  # alinha texto à direita e "acima"
 for (i in 1:2) {
-  abline( h=yStat[[i]]$valor, col=yStat[[i]]$color, lty=3 )
+  abline( h=yStat$valor[i], col=yStat$color[i], lty=DOTTED )
   text(
-    ( 3 * gd[1] / 4 ),
-    ( 1.1 + yStat[[i]]$valor ),
-    yStat[[i]]$texto,
-    col=yStat[[i]]$color,
-    font=4, cex=1, adj=c(0, 0)
+    x2, yStat$valor[i], yStat$nome[i], adj=ADJ,
+    cex=1, font=BOLD_ITALIC, col=yStat$color[i]
   )
 }
 
-# footer no canto inferior direito
-mtext(format(Sys.time(), 'Gerado via GNU R-cran em %d-%m-%Y.'),
-  side=1, adj=1.035, line=4, cex=1, font=4, col='lightslategray')
+# renderiza "box & whiskers" adicionado ao diagrama antes da primeira coluna
+boxplot(
+  as.vector(tabela), outline=T, frame.plot=F, add=T, at=-0.65,
+  border="red", col=c('mistyrose'), yaxt='n'
+)
 
-dev.off()
+# renderiza "footer" na extremidade inferior direita
+mtext(
+  format(Sys.time(), 'Gerado via GNU R-cran em %d-%m-%Y.'),
+  side=1, adj=1.035, line=4, cex=1, font=BOLD_ITALIC, col='lightslategray'
+)
+
+dev.off() # finaliza a renderização e fecha arquivo PNG
