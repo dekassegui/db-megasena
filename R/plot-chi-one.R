@@ -70,10 +70,14 @@ gd <- par()$usr   # coordenadas dos extremos do device
 hatch(valores[2], gd[2], cores[2])
 
 legend(
-  2*gd[2]/3, 4*gd[4]/5,
-  bty='n',
+  "topright",
+  inset=c(0, 0),
+  bty='o',            # renderização do frame do box das legendas
+  bg='white',         # cor de fundo do box
+  box.col='gray70',   # cor do frame do box
   cex=1.5,
-  text.font=2,  # bold
+  text.font=2,        # bold
+  text.col="slategray",
   density=densidade,
   fill=cores,
   legend=c(sprintf("%.3f (%5.3f)", valores, chi.tail(valores)))
