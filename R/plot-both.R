@@ -16,48 +16,35 @@ query='SELECT frequencia, latencia FROM info_dezenas ORDER BY dezena'
 numeros <- dbGetQuery(con, query)
 dbDisconnect(con)
 
-# -- parâmetros compartilhados pelos diagramas
+# parâmetros compartilhados pelos diagramas
+{
+  BAR_LABELS <- c(sprintf("%02d", 1:60))  # labels das colunas (ou barras)
+  BAR_LABELS_CEX=1.28
+  BAR_LABELS_FONT=2
+  BAR_LABELS_COL="darkred"
 
-MAIN_CEX=1.4      # fator de expansão da fonte de título de diagrama
-MAIN_FONT=2       # estilo de fonte em negrito
-MAIN_COL='gray9'  # cor do texto de título de diagrama
+  # cores para preenchimento "zebrado" das colunas, exceto as filtradas
+  BAR_COLORS <- rep_len(c("gold", "orange"), 60)
+  attach(numeros)
+  BAR_COLORS[ 10*frequencia < CONCURSO & latencia > 9 ]="darkorange2"
+  detach(numeros)
 
-BAR_LABELS <- c(sprintf('%02d', 1:60))  # labels das colunas (ou barras)
-BAR_LABELS_CEX=1.25
-BAR_LABELS_FONT=2
-BAR_LABELS_COL='gray0'
+  BAR_BORDER='gray80' # cor das bordas das colunas
+  SPACE=0.25          # espaçamento entre colunas
 
-# cores para preenchimento "zebrado" das colunas, exceto as filtradas
-BAR_COLORS <- rep_len(c('gold', 'orange'), 60)
-attach(numeros)
-BAR_COLORS[ 10*frequencia < CONCURSO & latencia > 9 ]='darkorange2'
-detach(numeros)
+  RULE_COL="gray30"
+  TICKSIZE=-0.0175  # comprimento de "tick marks" secundários
 
-BAR_BORDER='gray33' # cor das bordas das colunas
-SPACE=0.25            # espaçamento entre colunas
+  ADJ=c(1, -0.5)  # ajuste para alinhar texto a direita e "acima"
+  TXT_CEX=0.9
+  TXT_FONT=2
 
-Y_AXIS=2        # eixo Y -- lado esquerdo
-AXIS_LAS=2      # labels perpendiculares ao eixo
-AXIS_CEX=1.25
-AXIS_FONT=2
-AXIS_COL='gray0'  # cor do eixo e labels no eixo Y
+  HOT="tomato"    # cor para destacar linhas, textos, etc.
+  PALE="gray80"   # cor "discreta" das linhas de referência ordinárias
 
-TICKSIZE=-0.0175  # comprimento de "tick marks"
-LWD=.75           # espessura de linha de "tick marks"
-LEND='round'
-LJOIN='mitre'
-
-HOT='red'       # cor para destacar linhas, textos, etc.
-
-ADJ=c(1, -0.5)  # ajuste para alinhar texto a direita e "acima"
-TXT_CEX=0.85
-TXT_FONT=2
-
-PALE='gray79'   # cor "discreta" das linhas de referência ordinárias
-LTY='dotted'    # estilo das linhas de referência
-
-BOX_AT=-1.25            # posição do "box & whiskers"
-BOX_COL=c('mistyrose')  # cores de preenchimento dos "box & whiskers"
+  BOX_AT=-1.25            # posição do "box & whiskers"
+  BOX_COL=c("mistyrose")  # cores de preenchimento dos "box & whiskers"
+}
 
 # dispositivo de renderização: arquivo PNG container da imagem resultante
 png(
@@ -65,65 +52,67 @@ png(
   width=1100, height=600, pointsize=9, family="Quicksand"
 )
 
-split.screen(c(2, 1))   # configura layout "2 x 1"
+par(
+  las=1, font=2,
+  cex.axis=1.25, font.axis=2, col.axis="goldenrod4",  # labels do eixo Y
+  cex.lab=1.5, font.lab=2, col.lab="dimgray"          # títulos laterais
+)
 
-screen(1)   # DIAGRAMA DAS FREQUÊNCIAS
+minor=(min(numeros$frequencia)%/%10-1)*10 # limite inferior do eixo Y
+major=(max(numeros$frequencia)%/%10+1)*10 # limite superior do eixo Y
 
-minor=(min(numeros$frequencia) %/% 10 - 1) * 10   # limite inferior do eixo Y
-major=max(numeros$frequencia) + 1                 # limite superior do eixo Y
+# layout "2x1" com alturas das linhas proporcionais às amplitudes dos dados
+layout(
+  matrix(c(1, 2), nrow=2, ncol=1),
+  heights=c(major-minor, 10*(max(numeros$latencia)%/%10+1))
+)
+
+# -- DIAGRAMA DAS FREQUÊNCIAS
+
+par(mar=c(2.5, 5.5, 1, 1))
 
 barplot(
   numeros$frequencia,
-  main=list(
-    sprintf('Frequências dos números #%d', CONCURSO),
-    cex=MAIN_CEX, font=MAIN_FONT, col=MAIN_COL
-  ),
   names.arg=BAR_LABELS, cex.names=BAR_LABELS_CEX,
   font.axis=BAR_LABELS_FONT, col.axis=BAR_LABELS_COL,
   border=BAR_BORDER, col=BAR_COLORS, space=SPACE,
   ylim=c(minor, major),
-  xpd=FALSE,            # evita renderização fora dos limites de Y
-  yaxt='n'              # evita renderização default do eixo Y
+  xpd=FALSE,            # inabilita renderização fora dos limites de Y
+  yaxt='n'              # inabilita renderização default do eixo Y
 )
+
+title(ylab="Frequências", line=3.75)
 
 yLab=seq.int(from=minor, to=major, by=10)
-
-# renderiza o eixo Y conforme limites previamente estabelecidos
-axis(
-  Y_AXIS, las=AXIS_LAS,
-  cex.axis=AXIS_CEX, font.axis=AXIS_FONT, col.axis=AXIS_COL,
-  at=yLab
-)
-
+# renderiza o eixo Y conforme limites estabelecidos
+axis(2, at=yLab, col=RULE_COL)
 # renderiza "tick marks" extras no eixo Y
-rug(
-  head(yLab, -1)+5, side=Y_AXIS, col=AXIS_COL, ticksize=TICKSIZE, lwd=LWD,
-  lend=LEND, ljoin=LJOIN
-)
+rug(head(yLab, -1)+5, side=2, ticksize=TICKSIZE, lwd=1, col=RULE_COL)
 
 # renderiza texto e linha do valor esperado das frequências (= 6 * N / 60)
-abline(h=CONCURSO/10, col=HOT, lty=LTY)
-X2=par()$usr[2]
+abline(h=CONCURSO/10, col=HOT, lty="dotted")
+X2=par("usr")[2]
 text(X2, CONCURSO/10, "esperança", adj=ADJ, cex=TXT_CEX, font=TXT_FONT, col=HOT)
 # renderiza linhas de referência ordinárias evitando sobreposição
-abline(h=yLab[yLab > minor & abs(10*yLab-CONCURSO) > 3], col=PALE, lty=LTY)
+abline(h=yLab[yLab > minor & abs(10*yLab-CONCURSO) > 3], col=PALE, lty="dotted")
 
 # renderiza o "box & whiskers" entre o eixo Y e primeira coluna
 boxplot(
-  numeros$frequencia, outline=T, frame.plot=F, add=T, at=BOX_AT,
+  numeros$frequencia, frame.plot=F, add=T, at=BOX_AT,
   border=HOT, col=BOX_COL, yaxt='n'
 )
 
-screen(2)   # DIAGRAMA DAS LATÊNCIAS
+# renderiza o número do concurso mais recente na margem direita
+text(X2, minor, CONCURSO, srt=90, adj=c(0, 0), cex=4, font=1, col="dimgray")
 
-major=max(numeros$latencia) + 1   # limite superior do eixo Y
+# -- DIAGRAMA DAS LATÊNCIAS
+
+par(mar=c(2.5, 5.5, 0, 1))
+
+major=(max(numeros$latencia)%/%10+1)*10   # limite superior do eixo Y
 
 barplot(
   numeros$latencia,
-  main=list(
-    sprintf('Latências dos números #%d', CONCURSO),
-    cex=MAIN_CEX, font=MAIN_FONT, col=MAIN_COL
-  ),
   names.arg=BAR_LABELS, cex.names=BAR_LABELS_CEX,
   font.axis=BAR_LABELS_FONT, col.axis=BAR_LABELS_COL,
   border=BAR_BORDER, col=BAR_COLORS, space=SPACE,
@@ -131,36 +120,21 @@ barplot(
   yaxt='n'
 )
 
+title(ylab="Latências", line=3.5)
+
 yLab=seq.int(from=0, to=major, by=10)
-
-axis(
-  Y_AXIS, las=AXIS_LAS,
-  cex.axis=AXIS_CEX, font.axis=AXIS_FONT, col.axis=AXIS_COL,
-  at=yLab
-)
-
-rug(
-  head(yLab, -1)+5, side=Y_AXIS, col=AXIS_COL, ticksize=TICKSIZE, lwd=LWD,
-  lend=LEND, ljoin=LJOIN
-)
+axis(2, at=yLab, col=RULE_COL)
+rug(head(yLab, -1)+5, side=2, ticksize=TICKSIZE, lwd=1, col=RULE_COL)
 
 # renderiza texto e linha do valor esperado das latências (= 60 / 6)
-abline(h=10, col=HOT, lty=LTY)
+abline(h=10, col=HOT, lty="dotted")
 text(X2, 10, "esperança", adj=ADJ, cex=TXT_CEX, font=TXT_FONT, col=HOT)
 # renderiza linhas de referência ordinárias evitando sobreposição
-abline(h=c(5, yLab[yLab > 10]), col=PALE, lty=LTY)
+abline(h=c(5, yLab[yLab > 10]), col=PALE, lty="dotted")
 
 boxplot(
-  numeros$latencia, outline=T, frame.plot=F, add=T, at=BOX_AT,
+  numeros$latencia, frame.plot=F, add=T, at=BOX_AT,
   border=HOT, col=BOX_COL, yaxt='n'
 )
-
-# renderiza footer na extremidade inferior direita
-mtext(
-  paste("Concurso", CONCURSO, "da Mega-Sena"),
-  side=1, adj=1.015, line=3.9, cex=1.15, font=4, col='lightslategray'
-)
-
-close.screen(all=T)
 
 dev.off() # finaliza a renderização e fecha o arquivo

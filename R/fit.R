@@ -159,19 +159,19 @@ CORES <- c("darkgreen", "darkcyan", "navy", "darkred")
 par(lwd=1.2)
 
 # ajusta reta de mínimos quadrados às observações
-fit <- lm(primeiros$pvalue ~ primeiros$concurso)
+fit <- lm(pvalue ~ concurso, data=primeiros)
 lines(primeiros$concurso, predict(fit, primeiros), col=CORES[1])
 
 # ajusta polinômio de grau 2
-fit2 <- lm(primeiros$pvalue ~ poly(primeiros$concurso, 2, raw=T))
+fit2 <- lm(pvalue ~ poly(concurso, 2, raw=T), data=primeiros)
 lines(primeiros$concurso, predict(fit2, primeiros), col=CORES[2])
 
 # ajusta polinômio de grau 3
-fit3 <- lm(primeiros$pvalue ~ poly(primeiros$concurso, 3, raw=T))
+fit3 <- lm(pvalue ~ poly(concurso, 3, raw=T), data=primeiros)
 lines(primeiros$concurso, predict(fit3, primeiros), col=CORES[3])
 
 # ajusta polinômio de grau 4
-fit4 <- lm(primeiros$pvalue ~ poly(primeiros$concurso, 4, raw=T))
+fit4 <- lm(pvalue ~ poly(concurso, 4, raw=T), data=primeiros)
 lines(primeiros$concurso, predict(fit4, primeiros), col=CORES[4])
 
 # pré-renderização da legenda para obter suas coordenadas e dimensões

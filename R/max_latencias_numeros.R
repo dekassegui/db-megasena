@@ -4,111 +4,93 @@
 
 library(RSQLite)
 con <- dbConnect(SQLite(), 'megasena.sqlite')
-
+# requisita o número do concurso mais recente
+concurso <- dbGetQuery(con, 'SELECT MAX(concurso) FROM concursos')[1,1]
+# prepara o vetor das máximas latências dos números
 latencias <- vector(mode='integer', length=60)
-
+# "prepared statement" para requisitar as latências históricas de cada número
 rs <- dbSendQuery(con, "
-WITH RECURSIVE this (z, s) AS (
-    SELECT serie, serie || '0' FROM (
-      SELECT GROUP_CONCAT(NOT(dezenas >> ($target_value - 1) & 1), '') AS serie
-      FROM dezenas_juntadas
-    )
-  ), zero (j) AS (
-    SELECT INSTR(z, '00') FROM this
-    UNION ALL
-    SELECT j + INSTR(SUBSTR(z, j+1), '00') AS k FROM this, zero WHERE k > j
+WITH RECURSIVE this (s) AS (
+    SELECT GROUP_CONCAT(NOT(dezenas >> ($NUMERO - 1) & 1), '') || '0'
+    FROM dezenas_juntadas
   ), core (i) AS (
     SELECT INSTR(s, '1') FROM this
     UNION ALL
     SELECT i + INSTR(SUBSTR(s, i), '01') AS k FROM this, core WHERE k > i
-  ) SELECT INSTR(SUBSTR(s, i), '0')-1 AS latencia FROM this, core
-    UNION ALL
-    SELECT 0 AS latencia FROM zero"
+  ) SELECT INSTR(SUBSTR(s, i), '0')-1 AS latencia FROM this, core"
 )
+# loop de preenchimento do vetor das máximas latências de cada número
 for (numero in 1:60) {
-  dbBind(rs, list('target_value'=numero))
-  datum <- dbFetch(rs)
-  latencias[numero] = max(datum$latencia)
+  dbBind(rs, list('NUMERO'=numero))
+  dat <- dbFetch(rs)
+  latencias[numero] = max(dat$latencia)
 }
 dbClearResult(rs)
-# print(latencias)
-lastConcurso = dbGetQuery(con, 'SELECT MAX(concurso) FROM concursos')[1,1]
 dbDisconnect(con)
-rm(con, rs, datum)
+rm(con, rs, dat)
 
 if (interactive()) {
-  X11(display=":0.0", family='Quicksand', width=12, height=6, pointsize=10)
+  X11(display=":0.0", width=12, height=6, pointsize=10, family='Quicksand')
 } else {
-  png(filename='img/max-latencias.png', width=1080, height=640, pointsize=12, family='Quicksand')
+  png(filename='img/max-latencias.png', width=1200, height=600, pointsize=12, family='Quicksand')
 }
 
-BOLD = 2
-DOTTED = 'dotted'
-Y_AXIS = 2
-
-AXIS_COL = 'gray10'
-BAR_BORDER_COL = 'transparent'
-BAR_COLORS = c('orchid', 'palegreen')
-BOX_COL = 'pink'
-FOOTER_COL = 'gray'
-HOT = 'orangered'
-PALE = 'gray76'
-MAIN_COL= 'darkgreen'
+par(mar=c(2.25, 3, 3, 1))
 
 m = min(latencias)
 minor = m%/%10*10     # limite inferior do eixo Y
 M = max(latencias);
 major = ifelse((M%%10 > 0), 10*(M%/%10+1), M)+1   # limite superior do eixo Y
 
-barplot(
+bar <- barplot(
   latencias,
-  main=list(
-    sprintf('Máximas Latências Históricas #%d', lastConcurso),
-    cex=1.375, font=BOLD, col=MAIN_COL
-  ),
-  names.arg=c(sprintf("%02d", 1:60)),
-  cex.names=1.125, font.axis=BOLD, col.axis=AXIS_COL,
-  space=.25, col=BAR_COLORS, border=BAR_BORDER_COL,
+  space=.25, border="gray80", col=c("gold", "orange"),
+  xaxt='n',   # inabilita renderização default
+  yaxt='n',
   ylim=c(minor, major),
-  xpd=F,    # evita renderização das colunas abaixo do limite inferior
-  yaxt='n'  # evita renderização padrão do eixo Y
+  xpd=F       # não renderiza fora da área de plotagem
 )
 
-# renderiza o eixo Y com visual mais amigável
+title(
+  main="Máximas Latências Históricas dos Números",
+  cex.main=2.5, font.main=1, col.main="black"
+)
+
+# renderiza o eixo X com visual mais amigável
+axis(
+  1, at=bar, labels=c(sprintf("%02d", 1:60)),
+  mgp=c(0, .625, 0), col="transparent",
+  cex.axis=1.1875, font.axis=2, col.axis="orangered4"
+)
+
 yLabs = seq(minor, major, 10)
 axis(
-  Y_AXIS, las=2, cex.axis=1, font.axis=BOLD, col.axis=AXIS_COL, at=yLabs
+  2, at=yLabs, las=1, col="gray10",
+  cex.axis=1, font.axis=2, col.axis="orangered3"
 )
-
-# renderiza "tick marks" extras no eixo Y
-rug(
-  head(yLabs,-1)+5, side=Y_AXIS, col=AXIS_COL, ticksize=-0.0075, lwd=1,
-  lend='round', ljoin='mitre'
-)
+# renderiza "tick marks" secundários no eixo Y
+rug(head(yLabs,-1)+5, side=2, col="gray10", ticksize=-0.01, lwd=1)
 
 # linhas de referência ordinárias
-abline( h=seq(minor+10, M, 5), col=PALE, lty=DOTTED )
+abline(h=seq(minor+10, M, 5), col="gray80", lty="dotted")
 
-# linhas de referência da menor, da maior e da mediana das latências
-lista <- list(
-  valor=c(m, M, median(latencias)), nome=c('mínimo', 'máximo', 'mediana')
-)
-abline(h=lista$valor, col=HOT, lty=DOTTED)
-x2 <- par()$usr[2]; ADJ=c(1, -0.5)  # alinha texto à direita e acima
-for (j in 1:3) text(
-  x2, lista$valor[j], lista$nome[j], adj=ADJ, cex=.7, font=BOLD, col=HOT
+# linhas de referência dos "cinco números de Tukey"
+sumario <- fivenum(latencias)
+abline(h=sumario, col=c("coral","tomato","red","tomato","coral"), lty="dotted")
+text(
+  par("usr")[2], sumario[3], "mediana", adj=c(1, -0.5),
+  cex=.75, font=2, col="red"
 )
 
-# renderiza "box & whiskers" antes da primeira coluna
+# adiciona "box & whiskers" antes da primeira coluna
 boxplot(
   latencias, outline=T, frame.plot=F, add=T, at=-1.25,
-  border=HOT, col=c(BOX_COL), yaxt='n'
+  yaxt='n', border="tomato", col=c("mistyrose")
 )
 
-# renderiza "footer" na extremidade direita inferior
 mtext(
-  "Gerado via GNU R-cran.", side=1, adj=1.03, line=4,
-  cex=1, font=4, col=FOOTER_COL
+  paste("Mega-Sena", concurso), side=4, adj=1, line=-.625,
+  cex=2, font=1, col='firebrick'
 )
 
 dev.off() # finaliza a renderização e fecha arquivo
