@@ -28,7 +28,7 @@ bar <- barplot(
 )
 
 axis(
-  1, at=bar, labels=c(sprintf('%02d', 1:60)),
+  side=1, at=bar, labels=c(sprintf('%02d', 1:60)),
   mgp=c(0, .75, 0), col="transparent",
   cex.axis=1.275, font.axis=2, col.axis="orangered4"
 )
@@ -36,7 +36,7 @@ axis(
 # renderiza eixo Y com visual amigável
 y <- seq(from=minor, to=major, by=10)
 axis(
-  2, at=y, las=2, col="gray10",
+  side=2, at=y, las=2, col="gray10",
   cex.axis=1.25, font.axis=2, col.axis="orangered3"
 )
 z <- y[y+5 < major]+5
@@ -54,14 +54,19 @@ text(x2, esperanca, 'esperança', adj=c(1, -0.5), cex=.8, font=2, col="dodgerblu
 
 # renderiza "box & whiskers" adicionado antes da primeira coluna
 bp <- boxplot(
-  as.vector(frequencias), outline=T, frame.plot=F, add=T, at=-1.25,
-  border="red", col=c('pink'), yaxt='n'
+  as.vector(frequencias), outline=T, frame.plot=F, axes=F, add=T, at=-1.25,
+  border="red", col=c('pink'), yaxt='n', width=2
 )
 
-abline(h=bp$stats, col="tomato", lty="dotted")
+rect(
+  0, bp$stats[2], bar[60]+bar[1], bp$stats[4], col="#ff00ff20",
+  border="transparent", density=18
+)
+
+#abline(h=bp$stats, col="hotpink", lty="dotted")
 
 mtext(
   paste("Mega-Sena", concurso), side=4, adj=0, line=-.75,
-  cex=2.75, font=1, col='orangered'
+  cex=2.75, font=1, col='red'
 )
 dev.off() # finaliza a renderização e fecha o arquivo

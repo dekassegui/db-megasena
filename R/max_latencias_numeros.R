@@ -85,7 +85,12 @@ text(
 # adiciona "box & whiskers" antes da primeira coluna
 boxplot(
   latencias, outline=T, frame.plot=F, add=T, at=-1.25,
-  yaxt='n', border="tomato", col=c("mistyrose")
+  yaxt='n', border="tomato", col=c("mistyrose"), width=2
+)
+
+rect(
+  0, sumario[2], bar[60]+bar[1], sumario[4], col="#ff00ff20",
+  border="transparent", density=18
 )
 
 mtext(

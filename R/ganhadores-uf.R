@@ -98,6 +98,11 @@ bp <- boxplot(
   border="red", col=c('mistyrose'), yaxt='n'
 )
 
+rect(
+  0, bp$stats[2], bar[28]+bar[1], bp$stats[4], col="#ff00ff28",
+  border="transparent", density=18
+)
+
 abline(h=bp$stats, col="tomato", lty=DOTTED)
 
 # renderiza "footer" na extremidade inferior direita

@@ -42,7 +42,7 @@ bar <- barplot(
 )
 
 axis(
-  1, at=bar, labels=c(sprintf('%02d', 1:60)),
+  side=1, at=bar, labels=c(sprintf('%02d', 1:60)),
   mgp=c(0, .75, 0), col="transparent",
   cex.axis=1.2775, font.axis=2, col.axis="orangered4"
 )
@@ -50,7 +50,7 @@ axis(
 # renderiza o eixo Y com visual amigável
 y <- seq(0, major, 10)
 axis(
-  2, at=y, las=2, col="gray10",
+  side=2, at=y, las=2, col="gray10",
   cex.axis=1.25, font.axis=2, col.axis="orangered3"
 )
 # adiciona "tick marks" extras no eixo Y
@@ -64,16 +64,21 @@ text(par("usr")[2], 10, "esperança", adj=c(1, -0.5), cex=.8, font=2, col="dodge
 
 # adiciona "box & whiskers" antes da primeira coluna
 bp <- boxplot(
-  latencias$latencia, outline=T, frame.plot=F, add=T, at=-1.25,
-  border="darkred", col=c("#ffddbb"), yaxt='n'
+  latencias$latencia, outline=T, frame.plot=F, axes=F, add=T, at=-1.25,
+  border="darkred", col=c("#ffddbb"), yaxt='n', width=2
 )
 
-abline(h=bp$stats, col="#ff000040", lty="dotted")
+rect(
+  0, bp$stats[2], bar[60]+bar[1], bp$stats[4], col="#ffffffac",
+  border="transparent", density=18
+)
+
+#abline(h=bp$stats, col="hotpink", lty="dotted")
 
 legend(
   x="topright", inset=0, box.col="#cccccc", box.lwd=1, bg="white",
   border="#b0b0b0", fill=c("orange1", "gold"), x.intersp=.5,
-  legend=c("atual", "máxima histórica"), cex=1.125, text.col="black"
+  legend=c("atual", "recorde"), cex=1.125, text.col="black"
 )
 
 mtext(

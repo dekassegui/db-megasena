@@ -5,95 +5,127 @@
 # sumário de estatísticas de cada número, dos sorteios e do concurso.
 #
 library(RSQLite)
-con <- dbConnect(SQLite(), 'megasena.sqlite')
-# requisita o número do concurso mais recente e respectivo status de acumulação
-mega <- dbGetQuery(con, 'SELECT MAX(concurso) AS concurso, acumulado FROM concursos')
-# se ocorreu acumulação, então requisita a "latência da premiação principal"
-if (mega$acumulado == 1) {
-  mega$acumulado <- dbGetQuery(con, paste("
-WITH RECURSIVE cte(n) AS (
-  SELECT", mega$concurso, "
-  UNION ALL
-  SELECT n-1 AS m FROM cte, concursos WHERE concurso == m AND acumulado
-) SELECT COUNT(1) FROM cte"))[1,1]
-}
+con <- dbConnect(SQLite(), "megasena.sqlite")
+
+# requisita o número do concurso mais recente, número de concursos acumulados
+# e percentual de acumulação ao longo do tempo
+mega <- dbGetQuery(con, "WITH cte(m, n) AS (
+  SELECT MAX(concurso), SUM(acumulado) FROM concursos
+) SELECT m AS concurso, m-MAX(concurso) AS acumulados, 100.0*n/m AS acumulacao
+  FROM cte, concursos WHERE NOT acumulado")
+
 # requisita frequências e latências dos números no concurso mais recente
-numeros <- dbGetQuery(con, 'SELECT frequencia, latencia FROM info_dezenas ORDER BY dezena')
-# envia "prepared statement" para requisição da maior latência histórica de cada
-# número -- identificada via SQL com muito bom desempenho
-rs <- dbSendQuery(con, "SELECT MAX(latencia) AS maxLatencia FROM (
-  WITH RECURSIVE this (s) AS (
-    SELECT GROUP_CONCAT(NOT(dezenas >> ($NUMERO - 1) & 1), '') || '0'
-    FROM dezenas_juntadas
+numeros <- dbGetQuery(con, "SELECT frequencia, latencia FROM info_dezenas ORDER BY dezena")
+
+latencias <- vector("list", 60)
+# "prepared statement" para requisição dos comprimentos das sequências das
+# latências de cada número
+rs <- dbSendQuery(con, "
+  WITH RECURSIVE this (z, s) AS (
+    SELECT serie, serie || '0' FROM (
+      SELECT GROUP_CONCAT(dezenas>>($NUMERO-1)&1<>1, '') AS serie
+      FROM dezenas_juntadas
+    )
+  ), zero (j) AS (
+    SELECT INSTR(z, '00') FROM this
+    UNION ALL
+    SELECT j + INSTR(SUBSTR(z, j+1), '00') AS k FROM this, zero WHERE k > j
   ), core (i) AS (
     SELECT INSTR(s, '1') FROM this
     UNION ALL
     SELECT i + INSTR(SUBSTR(s, i), '01') AS k FROM this, core WHERE k > i
   ) SELECT INSTR(SUBSTR(s, i), '0')-1 AS latencia FROM this, core
-)")
-# loop das requisições das máximas latências históricas de cada número
+    UNION ALL
+    SELECT 0 AS latencia FROM zero")
+# loop das requisições das séries das latências de cada número
 for (n in 1:60) {
-  dbBind(rs, list('NUMERO'=n))
+  dbBind(rs, list("NUMERO"=n))
   dat <- dbFetch(rs)
-  numeros[n, "maxLatencia"] <- dat$maxLatencia
+  latencias[[n]] <- dat$latencia
 }
 dbClearResult(rs)
-# requisita números sorteados no concurso anterior ao mais recente
-anterior <- dbGetQuery(con, paste('SELECT dezena FROM dezenas_sorteadas where concurso ==', mega$concurso-1))
-dbDisconnect(con)
 
+# requisita os números sorteados no concurso anterior ao mais recente
+anterior <- dbGetQuery(con, paste("SELECT dezena FROM dezenas_sorteadas WHERE concurso+1 ==", mega$concurso))
+
+dbDisconnect(con)
 rm(con, dat, rs)
 
-{
-  # probabilidade do erro tipo I se H: X ~ U[1;60]
-  pvalue <- signif(chisq.test(numeros$frequencia, correct=F)$p.value, 4)
+# testa HØ: números ~ U(1, 60)
+teste <- chisq.test(numeros$frequencia, correct=F)
+x <- ifelse(teste$p.value >= .05, 1, 2)
 
-  cores <- colorRampPalette(c("lightgoldenrod1", "orange"))(60)
-  ordem <- rank(numeros$frequencia, ties.method="min")
-  numeros$corFundo <- cores[ordem]
-  # garante matiz mais intenso para números com máxima frequência
-  n <- numeros[which(ordem == 60), "frequencia"]
-  numeros[numeros$frequencia == n, "corFundo"] <- "darkorange"
+# testa HØ: latências de qualquer número têm a mesma distribuição
+teste <- kruskal.test(latencias)
+y <- ifelse(teste$p.value >= .05, 1, 2)
 
-  cores <- colorRampPalette(c("gray25", "gray35", "gray75"))(60)
-  numeros$corFrente <- cores[rank(numeros$latencia, ties.method="min")]
-  # garante máxima tonalidade de cinza para números com mínima latência (=zero)
-  numeros[numeros$latencia == 0, "corFrente"] <- "black"
+numeros$maxLatencia <- sapply(latencias, max)
+rm(latencias, teste)
 
-  rm(cores, ordem)
+numeros$corFundo <- "white"
 
-  MIDDLE <- c(.5, .5); LEFTUP <- c(0, 1); LEFTDN <- c(0, 0)
-  RIGHTUP <- c(1, 1); RIGHTDN <- c(1, 0)
-}
+five <- fivenum(numeros$frequencia)
 
-png(filename='img/dia.png', width=1000, height=640, pointsize=10, family='Quicksand')
+cores <- colorRamp(c("#FFCC66", "orange1"), bias=1, space="rgb", interpolate="spline")
+selection <- which(numeros$frequencia>five[4])
+numeros[selection,]$corFundo <- rgb(cores((numeros[selection,]$frequencia-five[4])/(five[5]-five[4])), max=255)
 
-par(
-  mar=c(.75, .75, 4.25, .75), font=2, cex.main=3.75, col.main="black"
-)
+cores <- colorRamp(c("yellow1", "gold1"), bias=.75, space="rgb", interpolate="spline")
+selection <- which(numeros$frequencia>five[3] & numeros$frequencia<=five[4])
+numeros[selection,]$corFundo <- rgb(cores((numeros[selection,]$frequencia-five[3])/(five[4]-five[3])), max=255)
 
-plot(
-  NULL, NULL, type="n", axes=F, xaxs='i', yaxs='i', xlim=c(0, 10), ylim=c(0, 6)
-)
+cores <- colorRamp(c("#D0FFD0", "seagreen2"), bias=1, space="rgb", interpolate="spline")
+selection <- which(numeros$frequencia>five[2] & numeros$frequencia<=five[3])
+numeros[selection,]$corFundo <- rgb(cores((numeros[selection,]$frequencia-five[2])/(five[3]-five[2])), max=255)
 
-title(paste("Mega-Sena", mega$concurso), adj=0, line=1.1875)
+cores <- colorRamp(c("#ACECFF", "skyblue1"), bias=1, space="rgb", interpolate="spline")
+selection <- which(numeros$frequencia<=five[2])
+numeros[selection,]$corFundo <- rgb(cores((numeros[selection,]$frequencia-five[1])/(five[2]-five[1])), max=255)
 
-# "background" do modelo de quadricula na área de notificação
-rect(7.92, 6.06, 10, 6.45, xpd=TRUE, col="khaki1", border=NA)
+cores <- colorRampPalette(c("gray25", "gray34", "gray75"))(60)
+numeros$corFrente <- cores[rank(numeros$latencia, ties.method="last")]
+# garante máxima tonalidade de cinza para números com mínima latência (=zero)
+numeros[numeros$latencia == 0, "corFrente"] <- "black"
 
-# notificações e modelo de quadrícula renderizados como texto marginal
+rm(cores, five, selection)
+
+png(filename="img/dia.png", width=1000, height=640, pointsize=10, family="Quicksand")
+
+par(mar=c(.75, .75, 4.25, .75), font=2)
+
+plot(NULL, type="n", axes=F, xaxs="i", yaxs="i", xlim=c(0, 10), ylim=c(0, 6))
+
+title(paste("Mega-Sena", mega$concurso), adj=0, line=1.1875, cex.main=3.75)
+
 mtext(
-  c("concursos acumulados:", mega$acumulado, "X~U[1;60] \u27A1 p.value:", pvalue, "frequência", "Atípico⁄Reincidente", "latência", "maior latência"),
-  col=c("gray35", "darkred", "gray35", "darkred", "darkred", "black", "violetred", "firebrick"),
-  side=3, cex=1.26,
-  adj=c(1, 0, 1, 0, 0, 1, 0, 1),
-  at=c(4.55, 4.59, 4.39, 4.43, 7.98, 9.94, 7.98, 9.94),
-  line=c(2.4, 2.4, .9, .9, 2.1, 2.1, .7, .7)
+  c("acumulados:", mega$acumulados, "acumulação:", sprintf("%5.2f%%", mega$acumulacao)),
+  side=3, at=c(4.15, 4.19), line=c(2.4, 2.4, 1, 1), adj=c(1, 0),
+  cex=1.26, col=c("gray33", "sienna"), family="Quicksand Bold"
 )
 
-# complementa a estatística com símbolo qualificador adequado
-if (pvalue >= .05) n <- c("\uF00C", "dodgerblue") else n <- c("\uF00D", "red")
-mtext(n[1], side=3, at=5, line=.9, adj=.5, cex=1.75, col=n[2])
+dat <- matrix(c("\uF00C", "\uF00D", "dodgerblue", "red"), ncol=2, byrow=T)
+mtext(
+  c("números i.i.d. U\u276A1, 60\u276B", dat[1,x], "latências i.i.d. Geom\u276A0.1\u276B", dat[1,y]),
+  side=3, at=c(6.99, 7.03), line=c(2.4, 2.4, 1, 1), adj=c(1, 0), cex=c(1.26, 1.75),
+  col=c("gray33", dat[2,x], "gray33", dat[2,y]), family="Quicksand Bold"
+)
+rm(dat)
+
+# LEGENDA DAS QUADRÍCULAS
+
+rect(7.50, 6.06, 9.88, 6.46, xpd=T, col="#FFFFC0", border=NA) # background
+mtext(
+  c("frequência", "Atípico\u2215Reincidente", "latência", "latência recorde"),
+  side=3, at=c(7.56, 9.82), line=c(2.2, 2.2, .8, .8), adj=c(0, 1), cex=1.26,
+  col=c("darkred", "black", "violetred", "firebrick"), family="Quicksand Bold"
+)
+
+# ESCALA DE CORES DAS QUADRÍCULAS
+
+mtext(
+  rep("\u25A0", 4), side=3, at=10, line=seq(from=.42, by=.808, length.out=4),
+  adj=1, cex=1.1, col=c("#33C9FF", "#66CC00", "gold2", "orange1")
+)
 
 for (n in 1:60) {
   x <- (n-1) %% 10
@@ -101,27 +133,30 @@ for (n in 1:60) {
   attach(numeros[n,])
   # renderiza a quadricula com cor em função da frequência
   rect(x, 5-y, x+1, 6-y, col=corFundo, border="white")
-  # renderiza o número com cor em função da latência
-  text(x+.5, 5-y+.5, sprintf("%02d", n), adj=MIDDLE, cex=4, col=corFrente)
+  # renderiza o número com cor em função da latência em relevo
+  text(
+    c(x+.51, x+.5), c(5.49-y, 5.5-y), sprintf("%02d", n),
+    adj=c(.5, .5), cex=4, col=c("white", corFrente)
+  )
   # frequência histórica
-  text(x+.1, 6-y-.1, frequencia, adj=LEFTUP, cex=1.5, col="darkred")
+  text(x+.1, 5.9-y, frequencia, adj=c(0, 1), cex=1.5, col="darkred")
   # checa se frequência abaixo do esperado e latência acima do esperado
   if (10*frequencia < mega$concurso & latencia >= 10) {
-    text(x+1-.1, 6-y-.1, "A", adj=RIGHTUP, cex=1.25, col="black")
+    text(x+.9, 5.9-y, "A", adj=c(1, 1), cex=1.25, col="black")
   } else if (latencia == 0) {
     # renderiza borda extra para evidenciar número recém sorteado
-    #rect(
-    #  x+.025, 5-y+.025, x+1-.025, 6-y-.025, col="transparent", border="black", lwd=2
-    #)
+    rect(
+      x+.025, 5.025-y, x+.975, 5.975-y, col="transparent", border="black", lwd=2
+    )
     # checa se número é reincidente -- sorteado no concurso anterior
     if (n %in% anterior$dezena) {
-      text(x+1-.1, 6-y-.1, "R", adj=RIGHTUP, cex=1.25, col="black")
+      text(x+.9, 5.9-y, "R", adj=c(1, 1), cex=1.25, col="black")
     }
   }
   # latência imediata
-  text(x+.1, 5-y+.1, latencia, adj=LEFTDN, cex=1.5, col="violetred")
+  text(x+.1, 5.1-y, latencia, adj=c(0, 0), cex=1.5, col="violetred")
   # máxima latência histórica
-  text(x+1-.1, 5-y+.1, maxLatencia, adj=RIGHTDN, cex=1.5, col="firebrick")
+  text(x+.9, 5.1-y, maxLatencia, adj=c(1, 0), cex=1.5, col="firebrick")
   detach(numeros[n,])
 }
 

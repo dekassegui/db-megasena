@@ -103,7 +103,7 @@ plot(
   axes=FALSE    # inibe renderização dos eixos e do frame
 )
 
-title(main="Série do Erro Tipo I nos Testes das Frequências", line=2)
+title(main="Série do Erro Tipo I sob H: X~U\u276A1, 60\u276B", line=2)
 title(xlab="concursos", line=1.375)
 title(ylab="probabilidade", line=2.5)
 

@@ -17,34 +17,34 @@ numeros <- dbGetQuery(con, query)
 dbDisconnect(con)
 
 # parâmetros compartilhados pelos diagramas
-{
-  BAR_LABELS <- c(sprintf("%02d", 1:60))  # labels das colunas (ou barras)
-  BAR_LABELS_CEX=1.28
-  BAR_LABELS_FONT=2
-  BAR_LABELS_COL="darkred"
 
-  # cores para preenchimento "zebrado" das colunas, exceto as filtradas
-  BAR_COLORS <- rep_len(c("gold", "orange"), 60)
-  attach(numeros)
-  BAR_COLORS[ 10*frequencia < CONCURSO & latencia > 9 ]="darkorange2"
-  detach(numeros)
+BAR_LABELS <- c(sprintf("%02d", 1:60))  # labels das colunas (ou barras)
+BAR_LABELS_CEX=1.28
+BAR_LABELS_FONT=2
+BAR_LABELS_COL="darkred"
 
-  BAR_BORDER='gray80' # cor das bordas das colunas
-  SPACE=0.25          # espaçamento entre colunas
+# cores para preenchimento "zebrado" das colunas, exceto as filtradas
+BAR_COLORS <- rep_len(c("gold", "orange"), 60)
+attach(numeros)
+BAR_COLORS[ 10*frequencia < CONCURSO & latencia > 9 ]="darkorange2"
+detach(numeros)
 
-  RULE_COL="gray30"
-  TICKSIZE=-0.0175  # comprimento de "tick marks" secundários
+BAR_BORDER='gray80' # cor das bordas das colunas
+SPACE=0.25          # espaçamento entre colunas
 
-  ADJ=c(1, -0.5)  # ajuste para alinhar texto a direita e "acima"
-  TXT_CEX=0.9
-  TXT_FONT=2
+RULE_COL="gray30"
+TICKSIZE=-0.0175  # comprimento de "tick marks" secundários
 
-  HOT="tomato"    # cor para destacar linhas, textos, etc.
-  PALE="gray80"   # cor "discreta" das linhas de referência ordinárias
+ADJ=c(1, -0.5)  # ajuste para alinhar texto a direita e "acima"
+TXT_CEX=0.9
+TXT_FONT=2
 
-  BOX_AT=-1.25            # posição do "box & whiskers"
-  BOX_COL=c("mistyrose")  # cores de preenchimento dos "box & whiskers"
-}
+HOT="tomato"    # cor para destacar linhas, textos, etc.
+PALE="gray80"   # cor "discreta" das linhas de referência ordinárias
+REF="purple"
+
+BOX_AT=-1.25            # posição do "box & whiskers"
+BOX_COL=c("mistyrose")  # cores de preenchimento dos "box & whiskers"
 
 # dispositivo de renderização: arquivo PNG container da imagem resultante
 png(
@@ -71,7 +71,7 @@ layout(
 
 par(mar=c(2.5, 5.5, 1, 1))
 
-barplot(
+bar <- barplot(
   numeros$frequencia,
   names.arg=BAR_LABELS, cex.names=BAR_LABELS_CEX,
   font.axis=BAR_LABELS_FONT, col.axis=BAR_LABELS_COL,
@@ -85,21 +85,26 @@ title(ylab="Frequências", line=3.75)
 
 yLab=seq.int(from=minor, to=major, by=10)
 # renderiza o eixo Y conforme limites estabelecidos
-axis(2, at=yLab, col=RULE_COL)
+axis(side=2, at=yLab, col=RULE_COL)
 # renderiza "tick marks" extras no eixo Y
 rug(head(yLab, -1)+5, side=2, ticksize=TICKSIZE, lwd=1, col=RULE_COL)
 
 # renderiza texto e linha do valor esperado das frequências (= 6 * N / 60)
-abline(h=CONCURSO/10, col=HOT, lty="dotted")
+abline(h=CONCURSO/10, col=REF, lty="dotted")
 X2=par("usr")[2]
-text(X2, CONCURSO/10, "esperança", adj=ADJ, cex=TXT_CEX, font=TXT_FONT, col=HOT)
+text(X2, CONCURSO/10, "esperança", adj=ADJ, cex=TXT_CEX, font=TXT_FONT, col=REF)
 # renderiza linhas de referência ordinárias evitando sobreposição
 abline(h=yLab[yLab > minor & abs(10*yLab-CONCURSO) > 3], col=PALE, lty="dotted")
 
 # renderiza o "box & whiskers" entre o eixo Y e primeira coluna
-boxplot(
-  numeros$frequencia, frame.plot=F, add=T, at=BOX_AT,
-  border=HOT, col=BOX_COL, yaxt='n'
+bp <- boxplot(
+  numeros$frequencia, frame.plot=F, axes=F, add=T, at=BOX_AT,
+  border=HOT, col=BOX_COL, yaxt='n', width=1.125
+)
+
+rect(
+  0, bp$stats[2], bar[60]+bar[1], bp$stats[4], col="#ff00cc28",
+  border="transparent", density=18
 )
 
 # renderiza o número do concurso mais recente na margem direita
@@ -111,7 +116,7 @@ par(mar=c(2.5, 5.5, 0, 1))
 
 major=(max(numeros$latencia)%/%10+1)*10   # limite superior do eixo Y
 
-barplot(
+bar <- barplot(
   numeros$latencia,
   names.arg=BAR_LABELS, cex.names=BAR_LABELS_CEX,
   font.axis=BAR_LABELS_FONT, col.axis=BAR_LABELS_COL,
@@ -123,18 +128,23 @@ barplot(
 title(ylab="Latências", line=3.5)
 
 yLab=seq.int(from=0, to=major, by=10)
-axis(2, at=yLab, col=RULE_COL)
+axis(side=2, at=yLab, col=RULE_COL)
 rug(head(yLab, -1)+5, side=2, ticksize=TICKSIZE, lwd=1, col=RULE_COL)
 
 # renderiza texto e linha do valor esperado das latências (= 60 / 6)
-abline(h=10, col=HOT, lty="dotted")
-text(X2, 10, "esperança", adj=ADJ, cex=TXT_CEX, font=TXT_FONT, col=HOT)
+abline(h=10, col=REF, lty="dotted")
+text(X2, 10, "esperança", adj=ADJ, cex=TXT_CEX, font=TXT_FONT, col=REF)
 # renderiza linhas de referência ordinárias evitando sobreposição
 abline(h=c(5, yLab[yLab > 10]), col=PALE, lty="dotted")
 
-boxplot(
-  numeros$latencia, frame.plot=F, add=T, at=BOX_AT,
-  border=HOT, col=BOX_COL, yaxt='n'
+bp <- boxplot(
+  numeros$latencia, frame.plot=F, axes=F, add=T, at=BOX_AT,
+  border=HOT, col=BOX_COL, yaxt='n', width=1.125
+)
+
+rect(
+  0, bp$stats[2], bar[60]+bar[1], bp$stats[4], col="#ff00cc28",
+  border="transparent", density=18
 )
 
 dev.off() # finaliza a renderização e fecha o arquivo

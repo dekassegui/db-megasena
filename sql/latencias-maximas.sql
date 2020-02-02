@@ -11,7 +11,7 @@ create temp table t as
 update t set mask=(
   select group_concat(dezenas & numero == numero, "")
   from ( select 1 << n-1 as numero ),
-    ( select dezenas from dezenas_juntadas where concurso > 1665 )
+    ( select dezenas from dezenas_juntadas where concurso > 0 )
 );
 .print "> calculando latências máximas"
 update t set latencia=(
