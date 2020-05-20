@@ -18,28 +18,24 @@ if (is.na(estatistica)) {
   X11(display=":0.0", family='serif', 12.7, 6, 9)
 } else {
   # renderização em batch
-  png(filename='img/chi-one.png', width=640, height=480, family='DejaVu Serif', pointsize=9)
+  png(filename='img/chi-one.png', width=640, height=480, family='Quicksand', pointsize=10)
   usingPNG = TRUE
 }
 
-opar=par(bg='white', fg='#333333')
+opar=par(bg='white', fg='#333333', mar=c(3, 4, 4, 1))
 
 curve(
-  chi.density,
-  xlim=c(0, round(chi.critical(0.999))),
-  bty='n',      # renderiza apenas eixos
-  col='blue',
-  main = list(
-    sprintf("Distribuição χ² (gl=%d)", chi.df),
-    cex=1.75,   # font size scale
-    font=4      # bold + italic
-  ),
-  ylab = list(''),
-  xlab = list('')
+  chi.density, ylab = "", xlab = "", cex.axis=1.25, bty='n', col='blue',
+  las=1,  xlim=c(0, round(chi.critical(0.999)))
+)
+
+title(
+  main = bquote(bold("Distribuição" ~ chi[.(chi.df)]^2)), line=2.25,
+  cex.main=2.125
 )
 
 valores <- c(estatistica, chi.critical(0.95))
-cores <- c('#00cc00', '#cc0000')
+cores <- c('green2', 'red')
 
 abline(v=valores, lty='solid', col=cores)
 

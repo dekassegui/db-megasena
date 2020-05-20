@@ -85,27 +85,29 @@ for (n in 1:60) {
     m/2, .5, adj=c(.4, .5), sprintf("%02d", n), cex=4, font=2, col="slategray"
   )
   pr <- with(tail(dat[dat$N==n,], 1), ndx/fim)
-  text(m/2, .225, adj=c(.4, .5), sprintf("p=%5.3f", pr), cex=3, font=2, col="darkviolet")
-  text(m/2, .225, adj=c(2.93, .45), "\u02C6", cex=3, font=2, col="darkviolet")
+  text(
+    m/2, .225, adj=c(.4, .5), bquote(bold(hat(p)==.(sprintf("%5.3f", pr)))),
+    cex=2.65, font=2, col="darkviolet"
+  )
 }
 
 dev.off()
 
 plota <- function (numero) {
-  fname <- "img/cdf.png"
+  fname <- sprintf("img/cdf%02d.png", numero)
   png(fname, width=640, height=640, family='Roboto', pointsize=16)
   par(mar=c(4, 4, 2, 1), fg='green3', font=2)
-  x <- dat[dat$N==numero,]$len-1
-  m <- max(x)
+  x <- dat[dat$N==numero,]
+  m <- max(x$len-1)
   RcmdrMisc::plotDistr(
     0:m, pgeom(0:m, p.sucesso), cdf=T, discrete=T,
     bty='n', lwd=3, ylim=c(-.05, 1), xlim=c(0, m), yaxt='n', xaxt='n',
     main=paste0('ECDF x CDF Geométrica(', p.sucesso, ')'), xlab='', ylab=''
   )
-  plot(ecdf(x), add=T, verticals=T, col='darkviolet', pch=20)
+  plot(ecdf(x$len-1), add=T, verticals=T, col='darkviolet', pch=20)
 
   par(fg="gray20")
-  title(xlab=paste0('tempo de espera N=', numero), line=2.3)
+  title(xlab=sprintf('tempo de espera para N=%02d', numero), line=2.3)
   axis(side=1, seq.int(0, m, 10))
   rug(side=1, seq.int(5, m, 10), ticksize=-.0125, lwd=1)
 
@@ -120,13 +122,19 @@ plota <- function (numero) {
     sprintf("%02d", numero), x=m/2, y=.5, adj=c(.5, .5), cex=10, col='gray92'
   )
   text(
-    with(tail(dat[dat$N==numero,], 1), sprintf("p=%5.3f", ndx/fim)),
+    bquote(bold(hat(p)) == bold(.(sprintf("%5.3f", with(tail(x,1),ndx/fim))))),
     x=m/2, y=.25, adj=c(.5, .5), cex=4, col='gray92'
   )
-  text(x=m/2, y=.25, adj=c(3.7, .45), "\u02C6", cex=4, col="gray92")
+
+  gf <- vcd::goodfit(x$len-1, type="nbinomial", par=list(size=1, prob=p.sucesso))
+  z <- as.numeric(unlist(strsplit(sub('\\D+', '', capture.output( summary(gf) )[5]), " ")))
+  text(
+    bquote("Fit-test: P(> X²)" == .(sprintf("%6.4f", z[3]))),
+    x=m/2, y=1/8, adj=c(.5, 1), cex=2, col=ifelse(z[3]>=.05, "#0066ff", "red")
+  )
 
   boxplot(
-    x, add=T, horizontal=T, frame=F, at=-.04, cex=.6, boxwex=.05,
+    x$len-1, add=T, horizontal=T, frame=F, at=-.04, cex=.6, boxwex=.05,
     col='pink', border='darkviolet', xaxt='n', yaxt='n'
   )
 
@@ -143,6 +151,10 @@ plota <- function (numero) {
 doit <- function (numero) {
   x <- dat[dat$N == numero,]$len-1
   gf <- vcd::goodfit(x, type="nbinomial", par=list(size=1, prob=p.sucesso))
-  summary(gf)
-  #plot(gf)
+  #summary(gf); plot(gf)
+  string <- capture.output( summary(gf) )[5]
+  y <- as.numeric(unlist(strsplit(sub('\\D+', '', string), " ")))
+  return(
+    list('number'=numero, 'value'=y[1], 'df'=as.integer(y[2]), 'p.value'=y[3])
+  )
 }
