@@ -5,6 +5,9 @@
 # sumário de estatísticas de cada número, dos sorteios e do concurso.
 #
 library(RSQLite)
+
+source("R/param.R")   # checa disponibilidade da tabela "param" + atualização
+
 con <- dbConnect(SQLite(), "megasena.sqlite")
 
 # requisita o número do concurso mais recente, número de concursos acumulados
@@ -18,38 +21,17 @@ mega <- dbGetQuery(con, "WITH cte(m, n) AS (
 numeros <- dbGetQuery(con, "SELECT frequencia, latencia FROM info_dezenas ORDER BY dezena")
 
 latencias <- vector("list", 60)
-# "prepared statement" para requisição dos comprimentos das sequências das
-# latências de cada número
-rs <- dbSendQuery(con, "
-  WITH RECURSIVE this (z, s) AS (
-    SELECT serie, serie || '0' FROM (
-      SELECT GROUP_CONCAT(dezenas>>($NUMERO-1)&1<>1, '') AS serie
-      FROM dezenas_juntadas
-    )
-  ), zero (j) AS (
-    SELECT INSTR(z, '00') FROM this
-    UNION ALL
-    SELECT j + INSTR(SUBSTR(z, j+1), '00') AS k FROM this, zero WHERE k > j
-  ), core (i) AS (
-    SELECT INSTR(s, '1') FROM this
-    UNION ALL
-    SELECT i + INSTR(SUBSTR(s, i), '01') AS k FROM this, core WHERE k > i
-  ) SELECT INSTR(SUBSTR(s, i), '0')-1 AS latencia FROM this, core
-    UNION ALL
-    SELECT 0 AS latencia FROM zero")
 # loop das requisições das séries das latências de cada número
 for (n in 1:60) {
-  dbBind(rs, list("NUMERO"=n))
-  dat <- dbFetch(rs)
-  latencias[[n]] <- dat$latencia
+  dbExecute(con, sprintf('update param set status=1 where comentario glob "* %d"', n))
+  latencias[[n]] <- dbReadTable(con, "esperas")$len-1
 }
-dbClearResult(rs)
 
 # requisita os números sorteados no concurso anterior ao mais recente
 anterior <- dbGetQuery(con, paste("SELECT dezena FROM dezenas_sorteadas WHERE concurso+1 ==", mega$concurso))
 
 dbDisconnect(con)
-rm(con, dat, rs)
+rm(con)
 
 # testa HØ: números ~ U(1, 60)
 teste <- chisq.test(numeros$frequencia, correct=F)

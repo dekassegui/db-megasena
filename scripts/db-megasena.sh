@@ -111,6 +111,8 @@ value_of() {
 }
 
 declare -r html='d_mega.htm'              # html baixado do website
+#declare -r html='d_megasc.htm'              # html baixado do website
+
 declare -r xml='MEGA.XML'                 # xml baseado no html
 declare -r db_file='megasena.sqlite'      # container do db SQLite
 declare -r db_renew='sql/db-renew.sql'    # script para criar/regenerar o db
@@ -122,6 +124,7 @@ declare -r lst='xsl/localidades.xsl'      # xsl listador de localidades de "ganh
 
 # endereço do zipfile remoto container do arquivo html
 declare -r url='http://www1.caixa.gov.br/loterias/_arquivos/loterias/D_megase.zip'
+#declare -r url='http://www1.caixa.gov.br/loterias/_arquivos/loterias/D_mgsasc.zip'
 
 declare -r zipfile=${url##*/}   # equivalente a basename $url
 
