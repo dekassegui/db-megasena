@@ -1,8 +1,12 @@
 # db-megasena
 
-Scripts para criação, atualização e consultas a DB dos concursos da MegaSena com utilização do <a href="http://www.sqlite.org" title="clique para acessar o website do SQLite">SQLite</a> mais extensões carregáveis, viabilizando analises estatísticas via <a href="http://www.r-project.org/" title="clique para acessar o website do R Statistical Computing...">R Statistical Computing Environment</a> ou similar.
+Scripts para criação, atualização e consultas a DB dos concursos da
+**Mega-Sena** com utilização do <a href="http://www.sqlite.org" title="clique para acessar o website do SQLite">SQLite</a> mais extensões carregáveis, viabilizando analises estatísticas via <a href="http://www.r-project.org/" title="clique para acessar o website do R Statistical Computing...">R Statistical Computing Environment</a> ou similar.
 
-A versão mais recente contempla as modificações dos dados públicos de 04/09/2014.
+A versão mais recente contempla as modificações dos dados públicos de
+06/05/2021, quando deixaram de ser publicados os arquivos das séries
+históricas dos concursos, porém disponíveis publicamente numa tabela
+organizada pelos autores para fácil apreciação visual, embora com perda de qualidade da informação.
 
 ## Importante
 
@@ -16,7 +20,7 @@ Após a montagem do projeto conforme documentado na página do wiki sobre <a hre
 
   1. Execute o script que baixa os dados do site da <a href="http://www1.caixa.gov.br/loterias/loterias/megasena/megasena_resultado.asp" title="clique aqui para acessar o website da Caixa Econômica Federal">Caixa Econômica Federal > Loterias</a> para atualizar/criar o DB da MegaSena se necessário:
 
-  <code>prompt/ <strong>./atualiza-db</strong></code>
+  <code>prompt/ <strong>./atualiza-db.sh</strong></code>
 
   2. Execute o script que gera o documento *megasena.html* contendo estatísticas e inferências:
 

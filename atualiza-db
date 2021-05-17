@@ -1,5 +1,0 @@
-#!/bin/bash
-#
-echo '-- Atualização em andamento.'
-./scripts/db-megasena.sh $@
-echo '-- Atualização finalizada.'
