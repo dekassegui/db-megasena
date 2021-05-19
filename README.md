@@ -18,7 +18,7 @@ Contrariando asneiras divulgadas por espertalhões, todos os scripts "aqui" publ
 
 Após a montagem do projeto conforme documentado na página do wiki sobre <a href="https://github.com/dekassegui/db-megasena/wiki/Depend%C3%AAncias" title="clique para acessar o documento">Dependências</a>:
 
-  1. Execute o script que baixa os dados do site da <a href="http://www1.caixa.gov.br/loterias/loterias/megasena/megasena_resultado.asp" title="clique aqui para acessar o website da Caixa Econômica Federal">Caixa Econômica Federal > Loterias</a> para atualizar/criar o DB da MegaSena se necessário:
+  1. Execute o script que baixa os dados do site da <a href="http://loterias.caixa.gov.br/wps/portal/loterias/landing/megasena" title="link de download no final da página">Caixa Econômica Federal > Loterias > Mega-Sena</a> para atualizar/criar o DB da MegaSena se necessário:
 
   <code>prompt/ <strong>./atualiza-db.sh</strong></code>
 
@@ -29,6 +29,10 @@ Após a montagem do projeto conforme documentado na página do wiki sobre <a hre
   3. Execute o script que sugere uma lista de dezenas a apostar no próximo concurso:
 
    <code>prompt/ <strong>./scripts/sugestao.sh</strong></code>
+   
+  4. Execute os scripts que geram os diagramas de estatísticas do concurso mais recente:
+  
+  <code>prompt/ <strong>R/dia.R && R/plot-both.R</strong></code>
 
 
 Assista a <a href="http://youtu.be/r2UlHOk1kh8" title="clique aqui para acessar a animação">animação das evoluções das séries temporais das frequências e latências dos números da MegaSena até o concurso 1600</a>.
