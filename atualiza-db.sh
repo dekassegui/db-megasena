@@ -27,7 +27,7 @@ echo -e '\nData presumida do sorteio mais recente: '$(long_date $F)'.'
 
 # nome do arquivo local container da série de concursos, baixado a cada execução
 # e preservado até a seguinte como backup
-html="dados.html"
+html="resultados.html"
 
 # preserva – se existir – o doc html da série de concursos baixado anteriormente
 [[ -e $html ]] && mv $html $html~
@@ -57,14 +57,14 @@ fi
 printf '\n-- Ajustando o doc html.\n'
 
 # ajusta o conteúdo do doc html recém baixado que é armazenado num novo doc html
-tidy -q --keep-time -n -o concursos.html $html > /dev/null 2>&1
+tidy -config tidy.cfg $html | sed -ru -f scripts/clean.sed > concursos.html
 
 printf '\n-- Extraindo dados dos concursos.\n'
 
 # extrai os dados dos concursos – exceto detalhes sobre acertadores –
 # transformando o doc html ajustado em arquivo text/plain conveniente para
 # importação de dados no sqlite
-xsltproc --html --stringparam SEPARATOR "|" xsl/concursos.xsl concursos.html | sed -ru 's/\.//g; s/,/./g' > concursos.dat
+xsltproc -o concursos.dat --html --stringparam SEPARATOR "|" xsl/concursos.xsl concursos.html
 
 printf '\n-- Extraindo dados dos acertadores.\n'
 
@@ -85,4 +85,3 @@ EOT
 
 # notifica o usuário sobre o concurso mais recente armazenado no db
 sqlite3 megasena.sqlite "select x'0a' || printf('Concurso registrado mais recente: %s em %s', concurso, strftime('%d-%m-%Y', data_sorteio)) || x'0a' from concursos order by concurso desc limit 1"
-
