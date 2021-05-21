@@ -11,23 +11,25 @@
 
   <xsl:template name="LISTA_DADOS_GANHADORES_MEGA" match="/">
 
-    <xsl:for-each select="//tbody/tr[count(td)=22 and td[9]>0]/td[16]/table/tr">
-      <xsl:value-of select="ancestor::tr[count(td)=22]/td[1]"/>
-      <xsl:value-of select="$SEPARATOR"/>
-      <xsl:choose>
-        <xsl:when test="string-length(td[1])>0">
-          <xsl:value-of select="td[1]"/>
-        </xsl:when>
-        <xsl:otherwise>NULL</xsl:otherwise>
-      </xsl:choose>
-      <xsl:value-of select="$SEPARATOR"/>
-      <xsl:choose>
-        <xsl:when test="string-length(td[2])>0">
-          <xsl:value-of select="td[2]"/>
-        </xsl:when>
-        <xsl:otherwise>NULL</xsl:otherwise>
-      </xsl:choose>
-      <xsl:text>&#xA;</xsl:text>
+    <xsl:for-each select="//tbody/tr[count(td)>2][position()>=$OFFSET][td[9]>0]">
+      <xsl:for-each select="td[16]/table/tr">
+        <xsl:value-of select="ancestor::tr[count(td)>2]/td[1]"/>
+        <xsl:value-of select="$SEPARATOR"/>
+        <xsl:choose>
+          <xsl:when test="string-length(td[1])>0">
+            <xsl:value-of select="td[1]"/>
+          </xsl:when>
+          <xsl:otherwise>NULL</xsl:otherwise>
+        </xsl:choose>
+        <xsl:value-of select="$SEPARATOR"/>
+        <xsl:choose>
+          <xsl:when test="string-length(td[2])>0">
+            <xsl:value-of select="td[2]"/>
+          </xsl:when>
+          <xsl:otherwise>NULL</xsl:otherwise>
+        </xsl:choose>
+        <xsl:text>&#xA;</xsl:text>
+      </xsl:for-each>
     </xsl:for-each>
 
   </xsl:template>

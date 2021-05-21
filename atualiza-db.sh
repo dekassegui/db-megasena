@@ -45,43 +45,47 @@ if [[ ! -e $html ]]; then
   exit 1
 fi
 
-# aborta execução se arquivos – remoto e local – não diferem
-if [[ -e $html~ ]]; then
-  diff -q $html $html~ > /dev/null
-  if (( $? == 0 )); then
-    printf '\nAviso: Arquivo remoto não foi modificado.\n\n'
-    exit 1
-  fi
-fi
-
 printf '\n-- Ajustando o doc html.\n'
 
 # ajusta o conteúdo do doc html recém baixado que é armazenado num novo doc html
 tidy -config tidy.cfg $html | sed -ru -f scripts/clean.sed > concursos.html
 
-printf '\n-- Extraindo dados dos concursos.\n'
-
-# extrai os dados dos concursos – exceto detalhes sobre acertadores –
-# transformando o doc html ajustado em arquivo text/plain conveniente para
-# importação de dados no sqlite
-xsltproc -o concursos.dat --html --stringparam SEPARATOR "|" xsl/concursos.xsl concursos.html
-
-printf '\n-- Extraindo dados dos acertadores.\n'
-
-# repete o passo anterior extraindo somente os dados sobre os acertadores
-xsltproc -o ganhadores.dat --html --stringparam SEPARATOR "|" xsl/acertadores.xsl concursos.html
-
-printf '\n-- Remontagem do db.\n'
-
-# reconstrói o db preenchendo as tabelas dos concursos e dos acertadores com os
-# respectivos dados recém extraídos
-sqlite3 megasena.sqlite <<EOT
+if [[ ! -e megasena.sqlite ]]; then
+  printf '\n-- Criando o db.\n'
+  sqlite3 megasena.sqlite <<EOT
 .read sql/monta.sql
 .read sql/bitmasks.sql
 .read sql/param.sql
+EOT
+fi
+
+n=$(xmllint --html --xpath "count(//tbody/tr[count(td)>2])" concursos.html)
+m=$(sqlite3 megasena.sqlite "select count(1) from concursos")
+
+if (( $n > $m )); then
+
+  printf '\n-- Extraindo dados dos concursos.\n'
+
+  # extrai os dados dos concursos – exceto detalhes sobre acertadores –
+  # transformando o doc html ajustado em arquivo text/plain conveniente para
+  # importação de dados no sqlite
+  xsltproc -o concursos.dat --html --stringparam SEPARATOR "|" --param OFFSET $((m+1)) xsl/concursos.xsl concursos.html
+
+  printf '\n-- Extraindo dados dos acertadores.\n'
+
+  # repete o passo anterior extraindo somente os dados sobre os acertadores
+  xsltproc -o ganhadores.dat --html --stringparam SEPARATOR "|" --param OFFSET $((m+1)) xsl/acertadores.xsl concursos.html
+
+  printf '\n-- Preenchendo o db.\n'
+
+  # preenchendo as tabelas dos concursos e dos acertadores com os respectivos
+  # dados recém extraídos
+  sqlite3 megasena.sqlite <<EOT
 .import concursos.dat concursos
 .import ganhadores.dat ganhadores
 EOT
 
-# notifica o usuário sobre o concurso mais recente armazenado no db
+fi
+
+# notifica usuário sobre o concurso mais recente armazenado no db
 sqlite3 megasena.sqlite "select x'0a' || printf('Concurso registrado mais recente: %s em %s', concurso, strftime('%d-%m-%Y', data_sorteio)) || x'0a' from concursos order by concurso desc limit 1"
