@@ -27,6 +27,7 @@ Após a montagem do projeto conforme documentado na página do wiki sobre <a hre
   > <code>prompt/ <strong>./scripts/sugestao.sh</strong></code>
 
   4. Execute os scripts que geram os diagramas de estatísticas do concurso mais recente:
+  ![diagramas](https://github.com/dekassegui/db-megasena/blob/master/img/diagramas-2235.png "diagramas")
 
   > <code>prompt/ <strong>R/dia.R && R/plot-both.R</strong></code>
 
