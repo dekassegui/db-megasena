@@ -2,9 +2,9 @@
 
 Scripts para criação, atualização e consultas a DB dos concursos da **Mega-Sena** com utilização do <a href="http://www.sqlite.org" title="clique para acessar o website do SQLite">SQLite</a> mais extensões carregáveis, viabilizando analises estatísticas via <a href="http://www.r-project.org/" title="clique para acessar o website do R Statistical Computing...">R Statistical Computing Environment</a> ou similar.
 
-A versão mais recente contempla as modificações dos dados públicos de *06 de maio de 2021*, quando deixaram de ser disponibilizados os arquivos em compressão da série histórica dos concursos que continua disponível publicamente numa tabela organizada pelos gestores para, embora com perda de qualidade da informação.
+A versão mais recente contempla as modificações dos dados públicos de *06 de maio de 2021*, quando deixaram de ser disponibilizados os arquivos em compressão da série histórica dos concursos que continua disponível publicamente numa tabela organizada pelos gestores, embora com perda de qualidade da informação.
 
-> Reinstale o corrente *upgrade* e delete o arquivo do DB – **megasena.sqlite** – que será reconstruído com novo esquema e preenchido na primeira execução do novo script de atualização – **atualiza-db.sh**.
+> **Reinstale o corrente upgrade e delete o arquivo do DB – <em>megasena.sqlite</em> – que será recriado com novo esquema e preenchido na primeira execução do novo script de atualização – <em>atualiza-db.sh</em>.**
 
 ## Importante
 
