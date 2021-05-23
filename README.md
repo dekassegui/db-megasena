@@ -14,7 +14,7 @@ Contrariando asneiras divulgadas por espertalhões, todos os scripts "aqui" publ
 
 Após a montagem do projeto conforme documentado na página do wiki sobre <a href="https://github.com/dekassegui/db-megasena/wiki/Depend%C3%AAncias" title="clique para acessar o documento">Dependências</a>:
 
-  1. Execute o script que baixa os dados do site da <a href="http://loterias.caixa.gov.br/wps/portal/loterias/landing/megasena" title="link de download no final da página">Caixa Econômica Federal > Loterias > Mega-Sena</a> para atualizar/criar o DB da MegaSena se necessário:
+  1. Execute o script que baixa os dados do website da <a href="http://loterias.caixa.gov.br/wps/portal/loterias/landing/megasena" title="link de download no final da página">Caixa Econômica Federal > Loterias > Mega-Sena</a> para atualizar/criar o DB da MegaSena se necessário:
 
   > <code>prompt/ <strong>./atualiza-db.sh</strong></code>
 

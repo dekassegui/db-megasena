@@ -71,10 +71,18 @@ if (( $n > $m )); then
   # importação de dados no sqlite
   xsltproc -o concursos.dat --html --stringparam SEPARATOR "|" --param OFFSET $((m+1)) xsl/concursos.xsl concursos.html
 
-  printf '\n-- Extraindo dados dos acertadores.\n'
-
-  # repete o passo anterior extraindo somente os dados sobre os acertadores
-  xsltproc -o ganhadores.dat --html --stringparam SEPARATOR "|" --param OFFSET $((m+1)) xsl/acertadores.xsl concursos.html
+  # contabiliza o número de acertadores a partir do concurso mais antigo não
+  # registrado, dado que o db pode estar desatualizado a mais de um concurso
+  n=$(xmllint --html --xpath "sum(//tbody/tr[count(td)>2][td[1]>$m]/td[10]/text())" concursos.html)
+  if (( $n > 0 )); then
+    printf '\n-- Extraindo dados dos acertadores.\n'
+    # repete o passo anterior extraindo somente os dados sobre os acertadores
+    xsltproc -o ganhadores.dat --html --stringparam SEPARATOR "|" --param OFFSET $((m+1)) xsl/acertadores.xsl concursos.html
+  else
+    # cria arquivo vazio com time stamp do arquivo baixado
+    printf '' > ganhadores.dat
+    touch -r $html ganhadores.dat
+  fi
 
   printf '\n-- Preenchendo o db.\n'
 
