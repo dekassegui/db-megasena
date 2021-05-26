@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# Script para atualizar e (re)criar, se necessário, o db da Mega-Sena com dados
+# baixados do website da Caixa Econômica Federal Loterias, conforme mudança na
+# oferta pública de dados da série temporal dos concursos em 06 de maio de 2021.
 
 # formata indiferentemente ao separador de campos, data no formato
 # yyyy.mm.dd ou dd.mm.yyyy como data no formato yyyy-mm-dd
@@ -25,75 +29,94 @@ fi
 
 echo -e '\nData presumida do sorteio mais recente: '$(long_date $F)'.'
 
-# nome do arquivo local container da série de concursos, baixado a cada execução
-# e preservado até a seguinte como backup
-html="resultados.html"
+declare -r dirty=resultados.html      # arquivo da série temporal de concursos
+                                      # baixada a cada execução e preservada até
+                                      # a seguinte como backup
+declare -r clean=concursos.html       # versão de $dirty válida no padrão HTML5
+                                      # da W3C
+declare -r dbname=megasena.sqlite     # arquivo do db SQLite, opcionalmente
+                                      # (re)criado, preenchido a cada execução
+declare -r concursos=concursos.dat    # arquivo plain/text dos dados de
+                                      # concursos para preenchimento do db
+declare -r ganhadores=ganhadores.dat  # arquivo plain/text dos dados de
+                                      # acertadores para preenchimento do db
 
-# preserva – se existir – o doc html da série de concursos baixado anteriormente
-[[ -e $html ]] && mv $html $html~
+# preserva, se existir, o arquivo da série de concursos baixado anteriormente
+[[ -e $dirty ]] && mv $dirty $dirty~
 
 printf '\n-- Baixando arquivo remoto.\n'
 
-# download do doc html da série de concursos mais recente, armazenado em "$html"
-# Nota: Não é possível usar "time stamping" e "cache".
-wget --default-page=$html -o wget.log --remote-encoding=utf8 http://loterias.caixa.gov.br/wps/portal/loterias/landing/megasena/\!ut/p/a1/04_Sj9CPykssy0xPLMnMz0vMAfGjzOLNDH0MPAzcDbwMPI0sDBxNXAOMwrzCjA0sjIEKIoEKnN0dPUzMfQwMDEwsjAw8XZw8XMwtfQ0MPM2I02-AAzgaENIfrh-FqsQ9wNnUwNHfxcnSwBgIDUyhCvA5EawAjxsKckMjDDI9FQE-F4ca/dl5/d5/L2dBISEvZ0FBIS9nQSEh/pw/Z7_HGK818G0K8DBC0QPVN93KQ10G1/res/id=historicoHTML/c=cacheLevelPage/=/
+# download da série temporal dos concursos que é armazenada em $dirty
+# Nota: Não é possível usar time_stamping e cache.
+wget --default-page=$dirty -o wget.log --remote-encoding=utf8 http://loterias.caixa.gov.br/wps/portal/loterias/landing/megasena/\!ut/p/a1/04_Sj9CPykssy0xPLMnMz0vMAfGjzOLNDH0MPAzcDbwMPI0sDBxNXAOMwrzCjA0sjIEKIoEKnN0dPUzMfQwMDEwsjAw8XZw8XMwtfQ0MPM2I02-AAzgaENIfrh-FqsQ9wNnUwNHfxcnSwBgIDUyhCvA5EawAjxsKckMjDDI9FQE-F4ca/dl5/d5/L2dBISEvZ0FBIS9nQSEh/pw/Z7_HGK818G0K8DBC0QPVN93KQ10G1/res/id=historicoHTML/c=cacheLevelPage/=/
 
-# restaura o arquivo e aborta execução se o download foi mal sucedido
-if [[ ! -e $html ]]; then
+# restaura o arquivo e aborta execução do script se o download foi mal sucedido
+if [[ ! -e $dirty ]]; then
   printf '\nAviso: Não foi possível baixar o arquivo remoto.\n\n'
-  [[ -e $html~ ]] && mv $html~ $html
+  [[ -e $dirty~ ]] && mv $dirty~ $dirty
   exit 1
 fi
 
 printf '\n-- Ajustando o doc html.\n'
 
-# ajusta o conteúdo do doc html recém baixado que é armazenado num novo doc html
-tidy -config tidy.cfg $html | sed -ru -f scripts/clean.sed > concursos.html
+# ajusta o html armazenado em $dirty que torna-se válido no padrão HTML5 da W3C
+# possibilitando consultas via XPath e extração de dados via XSLT
+tidy -config tidy.cfg $dirty | sed -ru -f scripts/clean.sed > $clean
 
-if [[ ! -e megasena.sqlite ]]; then
+if [[ ! -e $dbname ]]; then
   printf '\n-- Criando o db.\n'
-  sqlite3 megasena.sqlite <<EOT
+  sqlite3 $dbname <<EOT
 .read sql/monta.sql
 .read sql/bitmasks.sql
 .read sql/param.sql
 EOT
 fi
 
-n=$(xmllint --html --xpath "count(//tbody/tr[count(td)>2])" concursos.html)
-m=$(sqlite3 megasena.sqlite "select count(1) from concursos")
+xpath() {
+  xmllint --html --xpath "$1" $clean
+}
+
+# contabiliza a quantidade de registros de concursos no html
+n=$(xpath "count(//tbody/tr[count(td)>2])")
+
+# contabiliza a quantidade de registros de concursos no db
+m=$(sqlite3 $dbname "select count(1) from concursos")
 
 if (( $n > $m )); then
 
   printf '\n-- Extraindo dados dos concursos.\n'
 
-  # extrai os dados dos concursos – exceto detalhes sobre acertadores –
-  # transformando o doc html ajustado em arquivo text/plain conveniente para
-  # importação de dados no sqlite
-  xsltproc -o concursos.dat --html --stringparam SEPARATOR "|" --param OFFSET $((m+1)) xsl/concursos.xsl concursos.html
+  xslt() {
+    xsltproc -o "$1" --html --stringparam SEPARATOR "|" --param OFFSET $((m+1)) "$2" $clean
+  }
+
+  # extrai os dados dos concursos – exceto dos acertadores – transformando o doc
+  # html ajustado em arquivo text/plain conveniente para importação no SQLite
+  xslt $concursos xsl/concursos.xsl
 
   # contabiliza o número de acertadores a partir do concurso mais antigo não
   # registrado, dado que o db pode estar desatualizado a mais de um concurso
-  n=$(xmllint --html --xpath "sum(//tbody/tr[count(td)>2][td[1]>$m]/td[10]/text())" concursos.html)
+  n=$(xpath "sum(//tbody/tr[count(td)>2][td[1]>$m]/td[10]/text())")
+
   if (( $n > 0 )); then
     printf '\n-- Extraindo dados dos acertadores.\n'
-    # repete o passo anterior extraindo somente os dados sobre os acertadores
-    xsltproc -o ganhadores.dat --html --stringparam SEPARATOR "|" --param OFFSET $((m+1)) xsl/acertadores.xsl concursos.html
+    # extrai somente dados dos acertadores, transformando o doc html ajustado
+    # em arquivo text/plain conveniente para importação no db SQLite
+    xslt $ganhadores xsl/acertadores.xsl
   else
-    # cria arquivo vazio com time stamp do arquivo baixado
-    > ganhadores.dat
-    touch -r $html ganhadores.dat
+    > $ganhadores   # cria arquivo vazio que evita erro ao importar dados
   fi
 
   printf '\n-- Preenchendo o db.\n'
 
-  # preenchendo as tabelas dos concursos e dos acertadores com os respectivos
-  # dados recém extraídos
-  sqlite3 megasena.sqlite <<EOT
-.import concursos.dat concursos
-.import ganhadores.dat ganhadores
+  # preenche as tabelas dos concursos e dos acertadores com os respectivos dados
+  # recém extraídos
+  sqlite3 $dbname <<EOT
+.import $concursos concursos
+.import $ganhadores ganhadores
 EOT
 
 fi
 
-# notifica usuário sobre o concurso mais recente armazenado no db
-sqlite3 megasena.sqlite "select x'0a' || printf('Concurso registrado mais recente: %s em %s', concurso, strftime('%d-%m-%Y', data_sorteio)) || x'0a' from concursos order by concurso desc limit 1"
+# notifica o número serial e data do concurso mais recente no db
+sqlite3 $dbname "select x'0a' || printf('Concurso registrado mais recente: %s em %s', concurso, strftime('%d-%m-%Y', data_sorteio)) || x'0a' from concursos order by concurso desc limit 1"
