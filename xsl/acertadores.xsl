@@ -11,7 +11,7 @@
 
   <xsl:template name="LISTA_DADOS_GANHADORES_MEGA" match="/">
 
-    <xsl:for-each select="//tbody/tr[count(td)>2][position()>=$OFFSET][td[9]>0]">
+    <xsl:for-each select="//tbody/tr[count(td)>2][td[1]>=$OFFSET][td[10]>0]">
       <xsl:for-each select="td[16]/table/tr">
         <xsl:value-of select="ancestor::tr[count(td)>2]/td[1]"/>
         <xsl:value-of select="$SEPARATOR"/>
