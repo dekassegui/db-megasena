@@ -12,18 +12,18 @@
 
   <!-- monta a lista de registros que serão importados pelo SQLite -->
   <xsl:template name="LIST_BUILDER" match="/">
-    <xsl:for-each select="//tbody/tr[count(td)=22][position() &gt;= $OFFSET]">
+    <xsl:for-each select="//tr[count(td)>2 and td[1]>=$OFFSET]">
       <xsl:value-of select="td[1]"/><xsl:value-of select="$SEPARATOR"/>
       <!-- skip 2nd columnn -->
       <xsl:value-of select="substring(td[3],7)"/><xsl:text>-</xsl:text>
       <xsl:value-of select="substring(td[3],4,2)"/><xsl:text>-</xsl:text>
       <xsl:value-of select="substring(td[3],1,2)"/>
       <xsl:value-of select="$SEPARATOR"/>
-      <xsl:for-each select="td[position() &gt; 3 and position() &lt; 16]">
+      <xsl:for-each select="td[position()>3 and 16>position()]">
         <xsl:value-of select="."/><xsl:value-of select="$SEPARATOR"/>
       </xsl:for-each>
       <!-- skip 16th column -->
-      <xsl:for-each select="td[position() &gt; 16 and position() &lt; 20]">
+      <xsl:for-each select="td[position()>16 and 20>position()]">
         <xsl:value-of select="."/><xsl:value-of select="$SEPARATOR"/>
       </xsl:for-each>
       <xsl:choose>
