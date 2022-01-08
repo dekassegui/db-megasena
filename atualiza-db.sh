@@ -76,11 +76,30 @@ xpath() {
   xmllint --html --xpath "$1" $clean
 }
 
-# contabiliza a quantidade de registros de concursos no html
-n=$(xpath "count(//tbody/tr[count(td)>2])")
+# extrai o número do último concurso registrado no html
+n=$(xpath "string(//tbody/tr[last()]/td[1])")
+
+# contabiliza a quantidade de concursos registrados no html
+m=$(xpath "count(//tbody/tr[td[22]])")
+
+# checa integridade da sequência de registros de concursos no html baixado
+if (( $n > $m )); then
+  j=$(( n-m ))
+  printf '\nAviso: Falta(m) %d registro(s) no HTML baixado:\n\n' $j
+  z=$(xpath '//tbody/tr[td[22]]/td[1]' | sed -ru 's/[^0-9]+/ /g')
+  for (( k=1; j>0 && k<=n; k++ )); do
+    [[ $z =~ " $k " ]] && continue
+    printf ' %04d' $k
+    (( --j ))
+  done
+  printf '\n'
+fi
 
 # contabiliza a quantidade de registros de concursos no db
-m=$(sqlite3 $dbname "select count(1) from concursos")
+# m=$(sqlite3 $dbname "select count(1) from concursos")
+
+# requisita o número do último concurso registrado no db
+m=$(sqlite3 $dbname "select concurso from concursos order by concurso desc limit 1")
 
 if (( $n > $m )); then
 
@@ -96,7 +115,7 @@ if (( $n > $m )); then
 
   # contabiliza o número de acertadores a partir do concurso mais antigo não
   # registrado, dado que o db pode estar desatualizado a mais de um concurso
-  n=$(xpath "sum(//tbody/tr[count(td)>2][td[1]>$m]/td[10]/text())")
+  n=$(xpath "sum(//tr[td[1]>$m]/td[10])")
 
   if (( $n > 0 )); then
     printf '\n-- Extraindo dados dos acertadores.\n'
@@ -109,8 +128,7 @@ if (( $n > $m )); then
 
   printf '\n-- Preenchendo o db.\n'
 
-  # preenche as tabelas dos concursos e dos acertadores com os respectivos dados
-  # recém extraídos
+  # preenche as tabelas dos concursos e dos acertadores com os dados extraídos
   sqlite3 $dbname <<EOT
 .import $concursos concursos
 .import $ganhadores ganhadores
