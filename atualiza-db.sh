@@ -72,24 +72,31 @@ xpath() {
 n=$(xpath 'html/body/table/tbody/tr[last()]/td[1]')
 
 # contabiliza a quantidade de concursos registrados no html
-m=$(xpath 'count(html/body/table/tbody/tr[td[22]])')
+m=$(xpath 'count(html/body/table/tbody/tr[td])')
 
 # checa a sequência dos números dos concursos registrados no html
 if (( n > m )); then
-  # monta a representação textual da lista ordenada dos números
-  z=$(xpath "html/body/table/tbody/tr[td[22]]/td[1]")
-  j=$(( n-m ))
-  printf '\nAviso: %d registros omitidos no html:\n\n' $j
-  for (( k=1; j>0 && k<n; k++ )); do
-    [[ $z =~ $k ]] && continue
-    printf ' %04d' $k     # output do número do concurso omitido
-    (( --j ))             # atualiza o contador
+  # monta o array dos números dos concursos
+  read -d' ' -a z <<< $(xpath 'html/body/table/tbody/tr/td[1]')
+  r=$(( n-m ))
+  printf '\nAviso: %d registros ausentes no html:\n\n' $r
+  # pequisa componentes ausentes na frente do array
+  for (( j=1; j<${z[0]}; j++, r-- )); do printf ' %04d' $j; done
+  # pequisa componentes ausentes dentro do array
+  for (( i=0; r>0 && i<m-1; i++ )); do
+    (( ${z[i]}+1 == ${z[i+1]} )) && continue
+    for (( j=${z[i]}+1; j<${z[i+1]}; j++, r-- )); do printf ' %04d' $j; done
   done
   printf '\n'
+  unset z
 fi
 
 # requisita o número do concurso mais recente registrado no db
-m=$(sqlite3 $dbname 'select concurso from concursos order by data_sorteio desc limit 1')
+if (( $(sqlite3 $dbname 'select count(*) from concursos') > 0 )); then
+  m=$(sqlite3 $dbname 'select concurso from concursos order by data_sorteio desc limit 1')
+else
+  m=0
+fi
 
 if (( n > m )); then
 
@@ -97,17 +104,17 @@ if (( n > m )); then
 
   # extrai do html os dados dos concursos – exceto dos acertadores – que são
   # armazenados num CSV adequado para importação no db SQLite
-  xpath "html/body/table/tbody/tr[td[22] and td[1]>$m] / string-join((td[1], string-join((substring(td[3],7), substring(td[3],4,2), substring(td[3],1,2)), '-'), td[position()>3 and 13>position()], translate(string-join(td[(position()>12 and position()<16) or (position()>16 and 20>position())], '|'), ',.', '.'), if (td[20]='SIM') then 1 else 0), '|')" > $concursos
+  xpath "html/body/table/tbody/tr[td[1]>$m] / string-join((td[1], string-join((substring(td[3],7), substring(td[3],4,2), substring(td[3],1,2)), '-'), td[position()>3 and 13>position()], translate(string-join(td[(position()>12 and 16>position()) or (position()>16 and 20>position())], '|'), ',.', '.'), if (td[20]='SIM') then 1 else 0), '|')" > $concursos
 
   # contabiliza o número de acertadores a partir do concurso mais antigo não
   # registrado, dado que o db pode estar desatualizado a mais de um concurso
-  n=$(xpath "sum(html/body/table/tbody/tr[td[22] and td[1]>$m]/td[10])")
+  n=$(xpath "sum(html/body/table/tbody/tr[td[1]>$m]/td[10])")
 
   if (( $n > 0 )); then
     printf '\n-- Extraindo dados dos acertadores.\n'
     # extrai do html somente dados dos acertadores, que são armazenados
     # num CSV adequado para importação no db SQLite
-    xpath "html/body/table/tbody/tr[td[22] and td[1]>$m and td[10]>0]/td[16]/table/tbody/tr / concat(ancestor::tr[td[22]]/td[1], '|', upper-case(concat(if (string-length(td[1])=0) then 'NULL' else td[1], '|', if (string-length(td[2])=0) then 'NULL' else td[2])))" > $ganhadores
+    xpath "html/body/table/tbody/tr[td[1]>$m and td[10]>0]/td[16]/table/tbody/tr / concat(ancestor::tr[td]/td[1], '|', upper-case(concat(if (string-length(td[1])=0) then 'NULL' else td[1], '|', if (string-length(td[2])=0) then 'NULL' else td[2])))" > $ganhadores
   else
     > $ganhadores   # cria arquivo vazio para evitar erro na importação
   fi
