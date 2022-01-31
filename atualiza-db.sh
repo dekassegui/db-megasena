@@ -74,29 +74,24 @@ n=$(xpath 'html/body/table/tbody/tr[last()]/td[1]')
 # contabiliza a quantidade de concursos registrados no html
 m=$(xpath 'count(html/body/table/tbody/tr[td])')
 
-# checa a sequência dos números dos concursos registrados no html
+# checa a sequência dos números dos concursos no html
 if (( n > m )); then
   # monta o array dos números dos concursos
   read -d' ' -a z <<< $(xpath 'html/body/table/tbody/tr/td[1]')
   r=$(( n-m ))
   printf '\nAviso: %d registros ausentes no html:\n\n' $r
-  # pequisa componentes ausentes na frente do array
+  # pesquisa componentes ausentes na frente do array
   for (( j=1; j<${z[0]}; j++, r-- )); do printf ' %04d' $j; done
-  # pequisa componentes ausentes dentro do array
+  # pesquisa componentes ausentes dentro do array
   for (( i=0; r>0 && i<m-1; i++ )); do
-    (( ${z[i]}+1 == ${z[i+1]} )) && continue
     for (( j=${z[i]}+1; j<${z[i+1]}; j++, r-- )); do printf ' %04d' $j; done
   done
   printf '\n'
-  unset z
+  unset z     # elimina o array dos números
 fi
 
-# requisita o número do concurso mais recente registrado no db
-if (( $(sqlite3 $dbname 'select count(*) from concursos') > 0 )); then
-  m=$(sqlite3 $dbname 'select concurso from concursos order by data_sorteio desc limit 1')
-else
-  m=0
-fi
+# requisita o número do concurso mais recente registrado ou "zero" se db vazio
+m=$(sqlite3 $dbname 'select case when count(1) then concurso else 0 end from ( select concurso from concursos order by data_sorteio desc limit 1 )')
 
 if (( n > m )); then
 
