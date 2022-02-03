@@ -39,14 +39,20 @@ declare -r concursos=concursos.dat    # arquivo plain/text dos dados de
 declare -r ganhadores=ganhadores.dat  # arquivo plain/text dos dados de
                                       # acertadores para preenchimento do db
 
+# link para o arquivo html remoto que contém a série histórica dos concursos
+declare -r url=http://loterias.caixa.gov.br/wps/portal/loterias/landing/megasena/\!ut/p/a1/04_Sj9CPykssy0xPLMnMz0vMAfGjzOLNDH0MPAzcDbwMPI0sDBxNXAOMwrzCjA0sjIEKIoEKnN0dPUzMfQwMDEwsjAw8XZw8XMwtfQ0MPM2I02-AAzgaENIfrh-FqsQ9wNnUwNHfxcnSwBgIDUyhCvA5EawAjxsKckMjDDI9FQE-F4ca/dl5/d5/L2dBISEvZ0FBIS9nQSEh/pw/Z7_HGK818G0K8DBC0QPVN93KQ10G1/res/id=historicoHTML/c=cacheLevelPage/=/
+
 # preserva, se existir, o arquivo da série de concursos baixado anteriormente
 [[ -e $html ]] && mv $html $html~
 
 printf '\n-- Baixando arquivo remoto.\n'
 
-# download do arquivo html da série temporal dos concursos
-# Nota: Não é possível usar time_stamping e cache.
-wget --default-page=$html -o wget.log --remote-encoding=utf8 http://loterias.caixa.gov.br/wps/portal/loterias/landing/megasena/\!ut/p/a1/04_Sj9CPykssy0xPLMnMz0vMAfGjzOLNDH0MPAzcDbwMPI0sDBxNXAOMwrzCjA0sjIEKIoEKnN0dPUzMfQwMDEwsjAw8XZw8XMwtfQ0MPM2I02-AAzgaENIfrh-FqsQ9wNnUwNHfxcnSwBgIDUyhCvA5EawAjxsKckMjDDI9FQE-F4ca/dl5/d5/L2dBISEvZ0FBIS9nQSEh/pw/Z7_HGK818G0K8DBC0QPVN93KQ10G1/res/id=historicoHTML/c=cacheLevelPage/=/
+# Download do arquivo html da série histórica dos concursos, com imediata
+# contagem da quantidade de concursos e extração do número serial do concurso
+# mais recente – certamente o último.
+# Nota: Não é possível usar time_stamping & cache e HTTP errors eventuais serão
+#       notificados apenas no dispositivo de saída padrão.
+read m n <<< $(xidel $url --download=$html --output-encoding=UTF-8 -se 'concat(count(html/body/table/tbody/tr[td]), " ", html/body/table/tbody/tr[last()]/td[1])')
 
 # restaura o arquivo e aborta execução do script se o download foi mal sucedido
 if [[ ! -e $html ]]; then
@@ -55,24 +61,9 @@ if [[ ! -e $html ]]; then
   exit 1
 fi
 
-if [[ ! -e $dbname ]]; then
-  printf '\n-- Criando o db.\n'
-  sqlite3 $dbname <<EOT
-.read sql/monta.sql
-.read sql/bitmasks.sql
-.read sql/param.sql
-EOT
-fi
-
 xpath() {
   xidel $html -s --xpath "$1"
 }
-
-# extrai o número do concurso mais recente registrado no html
-n=$(xpath 'html/body/table/tbody/tr[last()]/td[1]')
-
-# contabiliza a quantidade de concursos registrados no html
-m=$(xpath 'count(html/body/table/tbody/tr[td])')
 
 # checa a sequência dos números dos concursos no html
 if (( n > m )); then
@@ -90,6 +81,16 @@ if (( n > m )); then
   unset z     # elimina o array dos números
 fi
 
+# cria o db se inexistente
+if [[ ! -e $dbname ]]; then
+  printf '\n-- Criando o db.\n'
+  sqlite3 $dbname <<EOT
+.read sql/monta.sql
+.read sql/bitmasks.sql
+.read sql/param.sql
+EOT
+fi
+
 # requisita o número do concurso mais recente registrado ou "zero" se db vazio
 m=$(sqlite3 $dbname 'select case when count(1) then concurso else 0 end from ( select concurso from concursos order by data_sorteio desc limit 1 )')
 
@@ -105,7 +106,7 @@ if (( n > m )); then
   # registrado, dado que o db pode estar desatualizado a mais de um concurso
   n=$(xpath "sum(html/body/table/tbody/tr[td[1]>$m]/td[10])")
 
-  if (( $n > 0 )); then
+  if (( n > 0 )); then
     printf '\n-- Extraindo dados dos acertadores.\n'
     # extrai do html somente dados dos acertadores, que são armazenados
     # num CSV adequado para importação no db SQLite
@@ -126,9 +127,9 @@ fi
 
 # notifica o número serial e data do concurso mais recente no db
 read n s <<< $(sqlite3 -separator ' ' $dbname 'select concurso, data_sorteio from concursos order by concurso desc limit 1')
-printf '\nConcurso mais recente no DB: %04d em %s.\n\n' $n "$(long_date $s)"
+printf '\nConcurso mais recente no DB: %04d (%s).\n\n' $n "$(long_date $s)"
 
 # pesquisa e notifica reincidência da combinação das dezenas sorteadas mais
-# recente na série histórica dos concursos
+# recente da série histórica dos concursos
 m=$(sqlite3 $dbname "with cte(N) as (select dezenas from dezenas_juntadas where concurso == $n) select count(1) from dezenas_juntadas, cte where dezenas == N")
 (( m > 1 )) && printf 'Nota: A combinação dos números sorteados %s\n\n' "ocorreu $m vezes!"
